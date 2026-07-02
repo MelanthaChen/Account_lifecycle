@@ -10,10 +10,3 @@ class AccountStatus(StrEnum):
 
 class Platform(StrEnum):
     REDDIT = "reddit"
-
-
-class SyncJobStatus(StrEnum):
-    QUEUED = "queued"
-    RUNNING = "running"
-    SUCCEEDED = "succeeded"
-    FAILED = "failed"

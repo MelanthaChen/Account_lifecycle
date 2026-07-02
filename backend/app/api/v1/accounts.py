@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_session
-from app.schemas.account import AccountAnalytics, AccountCreate, AccountRead, AccountUpdate
+from app.schemas.account import AccountCreate, AccountRead, AccountUpdate
 from app.services.account_service import AccountService
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
@@ -54,11 +54,3 @@ async def delete_account(
 ) -> Response:
     await account_service.delete_account(account_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-@router.get("/{account_id}/analytics", response_model=AccountAnalytics)
-async def account_analytics(
-    account_id: UUID,
-    account_service: AccountService = Depends(service),
-) -> AccountAnalytics:
-    return await account_service.analytics(account_id)

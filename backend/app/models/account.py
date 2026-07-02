@@ -1,33 +1,39 @@
 from datetime import datetime
-from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, DateTime, Enum, String, Text, func
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import Boolean, DateTime, Enum, String, Text, UniqueConstraint, func
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
 from app.models.enums import AccountStatus, Platform
 
-if TYPE_CHECKING:
-    from app.models.comment import Comment
-    from app.models.post import Post
-    from app.models.subreddit import AccountSubreddit
-    from app.models.sync_job import SyncJob
-
 
 class Account(Base):
     __tablename__ = "accounts"
+    __table_args__ = (
+        UniqueConstraint("platform", "username", name="uq_accounts_platform_username"),
+    )
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     nickname: Mapped[str] = mapped_column(String(120), nullable=False)
-    reddit_username: Mapped[str] = mapped_column(String(32), unique=True, index=True, nullable=False)
+    username: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
     status: Mapped[AccountStatus] = mapped_column(
-        Enum(AccountStatus, name="account_status"),
+        Enum(
+            AccountStatus,
+            name="account_status",
+            values_callable=lambda enum: [item.value for item in enum],
+            validate_strings=True,
+        ),
         default=AccountStatus.ACTIVE,
         nullable=False,
     )
     platform: Mapped[Platform] = mapped_column(
-        Enum(Platform, name="platform"),
+        Enum(
+            Platform,
+            name="platform",
+            values_callable=lambda enum: [item.value for item in enum],
+            validate_strings=True,
+        ),
         default=Platform.REDDIT,
         nullable=False,
     )
@@ -45,11 +51,3 @@ class Account(Base):
     last_sync: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     notes: Mapped[str | None] = mapped_column(Text)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-
-    sync_jobs: Mapped[list["SyncJob"]] = relationship(back_populates="account", cascade="all, delete-orphan")
-    posts: Mapped[list["Post"]] = relationship(back_populates="account", cascade="all, delete-orphan")
-    comments: Mapped[list["Comment"]] = relationship(back_populates="account", cascade="all, delete-orphan")
-    subreddit_links: Mapped[list["AccountSubreddit"]] = relationship(
-        back_populates="account",
-        cascade="all, delete-orphan",
-    )
