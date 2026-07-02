@@ -1,0 +1,45 @@
+from datetime import datetime
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from app.models.enums import AccountStatus, Platform
+
+
+class AccountBase(BaseModel):
+    nickname: str = Field(min_length=1, max_length=120)
+    reddit_username: str = Field(min_length=3, max_length=32, pattern=r"^[A-Za-z0-9_-]+$")
+    status: AccountStatus = AccountStatus.ACTIVE
+    platform: Platform = Platform.REDDIT
+    notes: str | None = None
+    is_active: bool = True
+
+
+class AccountCreate(AccountBase):
+    pass
+
+
+class AccountUpdate(BaseModel):
+    nickname: str | None = Field(default=None, min_length=1, max_length=120)
+    reddit_username: str | None = Field(default=None, min_length=3, max_length=32, pattern=r"^[A-Za-z0-9_-]+$")
+    status: AccountStatus | None = None
+    notes: str | None = None
+    is_active: bool | None = None
+
+
+class AccountRead(AccountBase):
+    id: UUID
+    created_at: datetime
+    updated_at: datetime
+    last_sync: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AccountAnalytics(BaseModel):
+    account_id: UUID
+    total_posts: int
+    total_comments: int
+    total_score: int
+    top_subreddits: list[dict[str, int | str]]
+    activity_by_day: list[dict[str, int | str]]
