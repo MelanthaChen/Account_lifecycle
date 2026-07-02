@@ -1,6 +1,7 @@
 import { Navigate, createBrowserRouter } from "react-router-dom";
 
 import { AppLayout } from "./components/layout/AppLayout";
+import { AccountDetailPage } from "./pages/AccountDetailPage";
 import { ActivityPage } from "./pages/ActivityPage";
 import { AccountsPage } from "./pages/AccountsPage";
 import { AnalyticsPage } from "./pages/AnalyticsPage";
@@ -15,6 +16,7 @@ export const router = createBrowserRouter([
       { index: true, element: <Navigate to="/dashboard" replace /> },
       { path: "dashboard", element: <DashboardPage /> },
       { path: "accounts", element: <AccountsPage /> },
+      { path: "accounts/:accountId", element: <AccountDetailPage /> },
       { path: "activity", element: <ActivityPage /> },
       { path: "analytics", element: <AnalyticsPage /> },
       { path: "settings", element: <SettingsPage /> }

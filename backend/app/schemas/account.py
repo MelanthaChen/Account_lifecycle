@@ -33,5 +33,11 @@ class AccountRead(AccountBase):
     created_at: datetime
     updated_at: datetime
     last_sync: datetime | None = None
+    session_path: str | None = None
+    session_status: str | None = None
+    last_login: datetime | None = None
+    last_validation: datetime | None = None
+    browser_profile: str | None = None
+    provider: str | None = None
 
     model_config = ConfigDict(from_attributes=True)

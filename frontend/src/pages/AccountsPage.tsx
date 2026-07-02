@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Plus, RefreshCw, Search } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 import { AccountDialog } from "../components/AccountDialog";
 import { AccountsTable } from "../components/AccountsTable";
@@ -12,6 +13,7 @@ import { useToast } from "../store/useToast";
 import type { Account, AccountInput } from "../types/account";
 
 export function AccountsPage() {
+  const navigate = useNavigate();
   const accounts = useAccounts();
   const createAccount = useCreateAccount();
   const updateAccount = useUpdateAccount();
@@ -120,7 +122,12 @@ export function AccountsPage() {
       ) : filteredAccounts.length === 0 ? (
         <StatePanel title={search ? "No accounts match your search." : "No accounts yet."} />
       ) : (
-        <AccountsTable accounts={filteredAccounts} onEdit={openEditDialog} onDelete={setDeleteTarget} />
+        <AccountsTable
+          accounts={filteredAccounts}
+          onEdit={openEditDialog}
+          onDelete={setDeleteTarget}
+          onOpen={(account) => navigate(`/accounts/${account.id}`)}
+        />
       )}
 
       <AccountDialog

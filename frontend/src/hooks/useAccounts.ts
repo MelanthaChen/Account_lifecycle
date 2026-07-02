@@ -3,13 +3,26 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createAccount,
   deleteAccount,
+  deleteAccountSession,
+  getAccount,
   listAccounts,
-  updateAccount
+  loginAccount,
+  refreshAccountSession,
+  updateAccount,
+  validateAccountSession
 } from "../api/accounts";
 import type { AccountInput } from "../types/account";
 
 export function useAccounts() {
   return useQuery({ queryKey: ["accounts"], queryFn: listAccounts });
+}
+
+export function useAccount(accountId: string) {
+  return useQuery({
+    queryKey: ["accounts", accountId],
+    queryFn: () => getAccount(accountId),
+    enabled: Boolean(accountId)
+  });
 }
 
 export function useCreateAccount() {
@@ -36,5 +49,42 @@ export function useDeleteAccount() {
   return useMutation({
     mutationFn: deleteAccount,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["accounts"] })
+  });
+}
+
+function invalidateAccount(queryClient: ReturnType<typeof useQueryClient>, accountId: string) {
+  queryClient.invalidateQueries({ queryKey: ["accounts"] });
+  queryClient.invalidateQueries({ queryKey: ["accounts", accountId] });
+}
+
+export function useLoginAccount(accountId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => loginAccount(accountId),
+    onSuccess: () => invalidateAccount(queryClient, accountId)
+  });
+}
+
+export function useValidateAccountSession(accountId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => validateAccountSession(accountId),
+    onSuccess: () => invalidateAccount(queryClient, accountId)
+  });
+}
+
+export function useRefreshAccountSession(accountId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => refreshAccountSession(accountId),
+    onSuccess: () => invalidateAccount(queryClient, accountId)
+  });
+}
+
+export function useDeleteAccountSession(accountId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => deleteAccountSession(accountId),
+    onSuccess: () => invalidateAccount(queryClient, accountId)
   });
 }

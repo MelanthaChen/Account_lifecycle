@@ -1,4 +1,4 @@
-import { Edit3, Trash2 } from "lucide-react";
+import { Edit3, ExternalLink, Trash2 } from "lucide-react";
 
 import { Button } from "./ui/button";
 import { StatusBadge } from "./ui/badge";
@@ -8,9 +8,10 @@ interface AccountsTableProps {
   accounts: Account[];
   onDelete: (account: Account) => void;
   onEdit: (account: Account) => void;
+  onOpen: (account: Account) => void;
 }
 
-export function AccountsTable({ accounts, onDelete, onEdit }: AccountsTableProps) {
+export function AccountsTable({ accounts, onDelete, onEdit, onOpen }: AccountsTableProps) {
   return (
     <div className="overflow-hidden rounded-md border border-border bg-white">
       <div className="overflow-x-auto">
@@ -27,7 +28,11 @@ export function AccountsTable({ accounts, onDelete, onEdit }: AccountsTableProps
           </thead>
           <tbody className="divide-y divide-border">
             {accounts.map((account) => (
-              <tr key={account.id} className="hover:bg-muted/40">
+              <tr
+                key={account.id}
+                className="cursor-pointer hover:bg-muted/40"
+                onClick={() => onOpen(account)}
+              >
                 <td className="px-4 py-3">
                   <div className="font-medium">{account.nickname}</div>
                   {account.notes ? (
@@ -50,8 +55,23 @@ export function AccountsTable({ accounts, onDelete, onEdit }: AccountsTableProps
                       type="button"
                       variant="ghost"
                       className="h-8 w-8 px-0"
+                      title="Open account"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onOpen(account);
+                      }}
+                    >
+                      <ExternalLink size={15} />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="h-8 w-8 px-0"
                       title="Edit account"
-                      onClick={() => onEdit(account)}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onEdit(account);
+                      }}
                     >
                       <Edit3 size={15} />
                     </Button>
@@ -60,7 +80,10 @@ export function AccountsTable({ accounts, onDelete, onEdit }: AccountsTableProps
                       variant="ghost"
                       className="h-8 w-8 px-0 text-red-700 hover:bg-red-50"
                       title="Delete account"
-                      onClick={() => onDelete(account)}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onDelete(account);
+                      }}
                     >
                       <Trash2 size={15} />
                     </Button>

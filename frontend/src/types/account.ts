@@ -12,6 +12,12 @@ export interface Account {
   last_sync: string | null;
   notes: string | null;
   is_active: boolean;
+  session_path: string | null;
+  session_status: string | null;
+  last_login: string | null;
+  last_validation: string | null;
+  browser_profile: string | null;
+  provider: string | null;
 }
 
 export interface AccountInput {
