@@ -18,15 +18,6 @@ class BrowserSessionResult:
     last_validation_changed: bool = False
 
 
-@dataclass(frozen=True)
-class BrowserLoginRequest:
-    username: str | None = None
-    password: str | None = None
-    remember_credentials: bool | None = None
-    auto_login: bool | None = None
-    launch_visible_browser: bool | None = None
-
-
 class BrowserSessionProvider(Protocol):
     def get_storage_directory(self, account: Account) -> Path:
         ...
@@ -34,7 +25,10 @@ class BrowserSessionProvider(Protocol):
     def get_profile_directory(self, account: Account) -> Path:
         ...
 
-    def login(self, account: Account, request: BrowserLoginRequest) -> BrowserSessionResult:
+    def create_session(self, account: Account) -> BrowserSessionResult:
+        ...
+
+    def finish_session(self, account: Account) -> BrowserSessionResult:
         ...
 
     def validate(self, account: Account) -> BrowserSessionResult:

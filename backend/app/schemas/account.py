@@ -14,14 +14,11 @@ class AccountBase(BaseModel):
     notes: str | None = None
     is_active: bool = True
     provider: str | None = Field(default=None, max_length=80)
-    saved_username: str | None = Field(default=None, max_length=160)
-    remember_credentials: bool = False
-    auto_login: bool = False
     launch_visible_browser: bool = True
 
 
 class AccountCreate(AccountBase):
-    saved_password: str | None = Field(default=None, max_length=500)
+    pass
 
 
 class AccountUpdate(BaseModel):
@@ -34,18 +31,6 @@ class AccountUpdate(BaseModel):
     provider: str | None = Field(default=None, max_length=80)
     browser_profile_path: str | None = Field(default=None, max_length=500)
     storage_directory: str | None = Field(default=None, max_length=500)
-    saved_username: str | None = Field(default=None, max_length=160)
-    saved_password: str | None = Field(default=None, max_length=500)
-    remember_credentials: bool | None = None
-    auto_login: bool | None = None
-    launch_visible_browser: bool | None = None
-
-
-class AccountLogin(BaseModel):
-    username: str | None = Field(default=None, max_length=160)
-    password: str | None = Field(default=None, max_length=500)
-    remember_credentials: bool | None = None
-    auto_login: bool | None = None
     launch_visible_browser: bool | None = None
 
 

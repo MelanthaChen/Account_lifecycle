@@ -1,5 +1,5 @@
 import { api } from "./client";
-import type { Account, AccountInput, AccountLoginInput } from "../types/account";
+import type { Account, AccountInput } from "../types/account";
 
 export async function listAccounts() {
   const response = await api.get<Account[]>("/accounts");
@@ -25,8 +25,13 @@ export async function deleteAccount(accountId: string) {
   await api.delete(`/accounts/${accountId}`);
 }
 
-export async function loginAccount(accountId: string, input: AccountLoginInput) {
-  const response = await api.post<Account>(`/accounts/${accountId}/login`, input);
+export async function createAccountSession(accountId: string) {
+  const response = await api.post<Account>(`/accounts/${accountId}/session/create`);
+  return response.data;
+}
+
+export async function finishAccountSession(accountId: string) {
+  const response = await api.post<Account>(`/accounts/${accountId}/session/finish`);
   return response.data;
 }
 
@@ -42,11 +47,6 @@ export async function refreshAccountSession(accountId: string) {
 
 export async function deleteAccountSession(accountId: string) {
   const response = await api.delete<Account>(`/accounts/${accountId}/session`);
-  return response.data;
-}
-
-export async function logoutAccountSession(accountId: string) {
-  const response = await api.post<Account>(`/accounts/${accountId}/session/logout`);
   return response.data;
 }
 

@@ -5,7 +5,7 @@ from pathlib import Path
 
 from app.models.account import Account
 from app.services.browser_sessions import browser_session_provider_registry
-from app.services.browser_sessions.base import BrowserLoginRequest, BrowserSessionResult
+from app.services.browser_sessions.base import BrowserSessionResult
 
 
 class BrowserManager:
@@ -17,9 +17,13 @@ class BrowserManager:
         provider = browser_session_provider_registry.get(account.platform)
         return provider.get_profile_directory(account)
 
-    async def login(self, account: Account, request: BrowserLoginRequest) -> BrowserSessionResult:
+    async def create_session(self, account: Account) -> BrowserSessionResult:
         provider = browser_session_provider_registry.get(account.platform)
-        return await asyncio.to_thread(provider.login, account, request)
+        return await asyncio.to_thread(provider.create_session, account)
+
+    async def finish_session(self, account: Account) -> BrowserSessionResult:
+        provider = browser_session_provider_registry.get(account.platform)
+        return await asyncio.to_thread(provider.finish_session, account)
 
     async def validate_session(self, account: Account) -> BrowserSessionResult:
         provider = browser_session_provider_registry.get(account.platform)

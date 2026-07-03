@@ -1,16 +1,25 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from pathlib import Path
 import re
 import shutil
 
 from app.models.account import Account
-from app.services.browser_sessions.base import BrowserLoginRequest, BrowserSessionResult
+from app.services.browser_sessions.base import BrowserSessionResult
 
 
-VALID_STATUS = "VALID"
-INVALID_STATUS = "INVALID"
-NOT_LOGGED_IN_STATUS = "NOT_LOGGED_IN"
+VALID_STATUS = "valid"
+INVALID_STATUS = "invalid"
+LOGIN_REQUIRED_STATUS = "login_required"
+MISSING_STATUS = "missing"
+
+
+@dataclass
+class ActiveBrowserSession:
+    playwright: object
+    context: object
 
 
 class RedditSessionProvider:
@@ -20,6 +29,8 @@ class RedditSessionProvider:
 
     def __init__(self, storage_root: Path | str = "storage") -> None:
         self.storage_root = Path(storage_root)
+        self._active_sessions: dict[str, ActiveBrowserSession] = {}
+        self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="reddit-session-provider")
 
     def get_storage_directory(self, account: Account) -> Path:
         if account.storage_directory:
@@ -32,52 +43,86 @@ class RedditSessionProvider:
         return self.get_storage_directory(account) / "profile"
 
     def get_state_path(self, account: Account) -> Path:
-        return self.get_storage_directory(account) / "state.json"
+        return self.get_storage_directory(account) / "storage_state.json"
 
-    def login(self, account: Account, request: BrowserLoginRequest) -> BrowserSessionResult:
+    def create_session(self, account: Account) -> BrowserSessionResult:
+        return self._run(self._create_session, account)
+
+    def finish_session(self, account: Account) -> BrowserSessionResult:
+        return self._run(self._finish_session, account)
+
+    def validate(self, account: Account) -> BrowserSessionResult:
+        return self._run(self._validate, account)
+
+    def refresh(self, account: Account) -> BrowserSessionResult:
+        return self.validate(account)
+
+    def delete(self, account: Account) -> BrowserSessionResult:
+        return self._run(self._delete, account)
+
+    def logout(self, account: Account) -> BrowserSessionResult:
+        return self._run(self._logout, account)
+
+    def open_browser(self, account: Account) -> BrowserSessionResult:
+        return self.open_url(account, "about:blank")
+
+    def open_url(self, account: Account, url: str) -> BrowserSessionResult:
+        return self._run(self._open_url, account, url)
+
+    def open_home(self, account: Account) -> BrowserSessionResult:
+        return self.open_url(account, self.home_url)
+
+    def _create_session(self, account: Account) -> BrowserSessionResult:
         from playwright.sync_api import sync_playwright
 
         storage_directory = self.ensure_storage_directories(account)
-        state_path = storage_directory / "state.json"
         profile_directory = self.get_profile_directory(account)
-        is_visible = True if request.launch_visible_browser is None else request.launch_visible_browser
+        self._close_active_session(account)
 
-        with sync_playwright() as playwright:
-            context = playwright.chromium.launch_persistent_context(
-                user_data_dir=str(profile_directory),
-                headless=not is_visible,
-                accept_downloads=True,
-                downloads_path=str(storage_directory / "downloads"),
-            )
-            page = context.pages[0] if context.pages else context.new_page()
-            page.goto(self.login_url, wait_until="domcontentloaded")
-            self._fill_login_form(page, request)
-
-            try:
-                for _ in range(300):
-                    if page.is_closed():
-                        raise RuntimeError("Login browser was closed before a session was detected.")
-
-                    cookies = context.cookies(self.home_url)
-                    if self._has_authenticated_cookie(cookies):
-                        context.storage_state(path=str(state_path))
-                        break
-
-                    page.wait_for_timeout(2000)
-                else:
-                    raise TimeoutError("Timed out waiting for Reddit login to complete.")
-            finally:
-                context.close()
+        playwright = sync_playwright().start()
+        context = playwright.chromium.launch_persistent_context(
+            user_data_dir=str(profile_directory),
+            headless=not account.launch_visible_browser,
+            accept_downloads=True,
+            downloads_path=str(storage_directory / "downloads"),
+        )
+        page = context.pages[0] if context.pages else context.new_page()
+        page.goto(self.login_url, wait_until="domcontentloaded")
+        self._active_sessions[str(account.id)] = ActiveBrowserSession(
+            playwright=playwright,
+            context=context,
+        )
 
         return self._result(
             account,
-            session_path=str(state_path),
-            session_status=VALID_STATUS,
-            last_login_changed=True,
+            session_status=LOGIN_REQUIRED_STATUS,
+        )
+
+    def _finish_session(self, account: Account) -> BrowserSessionResult:
+        active_session = self._active_sessions.pop(str(account.id), None)
+        if active_session is None:
+            return self._validate(account)
+
+        state_path = self.get_state_path(account)
+        try:
+            context = active_session.context
+            cookies = context.cookies(self.home_url)
+            is_valid = self._has_authenticated_cookie(cookies)
+            if is_valid:
+                context.storage_state(path=str(state_path))
+        finally:
+            active_session.context.close()
+            active_session.playwright.stop()
+
+        return self._result(
+            account,
+            session_path=str(state_path) if is_valid else None,
+            session_status=VALID_STATUS if is_valid else INVALID_STATUS,
+            last_login_changed=is_valid,
             last_validation_changed=True,
         )
 
-    def validate(self, account: Account) -> BrowserSessionResult:
+    def _validate(self, account: Account) -> BrowserSessionResult:
         from playwright.sync_api import sync_playwright
 
         state_path = Path(account.session_path) if account.session_path else self.get_state_path(account)
@@ -88,7 +133,7 @@ class RedditSessionProvider:
             return self._result(
                 account,
                 session_path=None,
-                session_status=NOT_LOGGED_IN_STATUS,
+                session_status=MISSING_STATUS,
                 last_validation_changed=True,
             )
 
@@ -113,10 +158,8 @@ class RedditSessionProvider:
             last_validation_changed=True,
         )
 
-    def refresh(self, account: Account) -> BrowserSessionResult:
-        return self.validate(account)
-
-    def delete(self, account: Account) -> BrowserSessionResult:
+    def _delete(self, account: Account) -> BrowserSessionResult:
+        self._close_active_session(account)
         storage_directory = self.get_storage_directory(account)
 
         if storage_directory.exists():
@@ -126,11 +169,10 @@ class RedditSessionProvider:
             session_path=None,
             storage_directory=None,
             browser_profile_path=None,
-            session_status=NOT_LOGGED_IN_STATUS,
-            last_validation_changed=True,
+            session_status=MISSING_STATUS,
         )
 
-    def logout(self, account: Account) -> BrowserSessionResult:
+    def _logout(self, account: Account) -> BrowserSessionResult:
         from playwright.sync_api import sync_playwright
 
         storage_directory = self.ensure_storage_directories(account)
@@ -153,14 +195,11 @@ class RedditSessionProvider:
         return self._result(
             account,
             session_path=None,
-            session_status=NOT_LOGGED_IN_STATUS,
+            session_status=MISSING_STATUS,
             last_validation_changed=True,
         )
 
-    def open_browser(self, account: Account) -> BrowserSessionResult:
-        return self.open_url(account, "about:blank")
-
-    def open_url(self, account: Account, url: str) -> BrowserSessionResult:
+    def _open_url(self, account: Account, url: str) -> BrowserSessionResult:
         from playwright.sync_api import sync_playwright
 
         storage_directory = self.ensure_storage_directories(account)
@@ -182,9 +221,6 @@ class RedditSessionProvider:
             context.close()
 
         return self._result(account, session_status=account.session_status)
-
-    def open_home(self, account: Account) -> BrowserSessionResult:
-        return self.open_url(account, self.home_url)
 
     def ensure_storage_directories(self, account: Account) -> Path:
         storage_directory = self.get_storage_directory(account)
@@ -211,40 +247,15 @@ class RedditSessionProvider:
             last_validation_changed=last_validation_changed,
         )
 
-    @staticmethod
-    def _fill_login_form(page, request: BrowserLoginRequest) -> None:
-        if not request.username or not request.password:
+    def _run(self, func, *args):
+        return self._executor.submit(func, *args).result()
+
+    def _close_active_session(self, account: Account) -> None:
+        active_session = self._active_sessions.pop(str(account.id), None)
+        if active_session is None:
             return
-
-        username_selectors = [
-            'input[name="username"]',
-            "#login-username",
-            'input[autocomplete="username"]',
-        ]
-        password_selectors = [
-            'input[name="password"]',
-            "#login-password",
-            'input[type="password"]',
-        ]
-
-        username_filled = RedditSessionProvider._fill_first_available(page, username_selectors, request.username)
-        password_filled = RedditSessionProvider._fill_first_available(page, password_selectors, request.password)
-        if username_filled and password_filled:
-            submit = page.locator('button[type="submit"]').first
-            if submit.count() > 0:
-                submit.click()
-
-    @staticmethod
-    def _fill_first_available(page, selectors: list[str], value: str) -> bool:
-        for selector in selectors:
-            locator = page.locator(selector).first
-            try:
-                if locator.count() > 0 and locator.is_visible(timeout=1000):
-                    locator.fill(value)
-                    return True
-            except Exception:
-                continue
-        return False
+        active_session.context.close()
+        active_session.playwright.stop()
 
     @staticmethod
     def _account_directory_name(account: Account) -> str:

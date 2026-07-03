@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_session
-from app.schemas.account import AccountCreate, AccountLogin, AccountRead, AccountUpdate
+from app.schemas.account import AccountCreate, AccountRead, AccountUpdate
 from app.services.account_service import AccountService
 from app.services.browser_session_service import BrowserSessionService
 
@@ -61,13 +61,20 @@ async def delete_account(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.post("/{account_id}/login", response_model=AccountRead)
-async def login_account(
+@router.post("/{account_id}/session/create", response_model=AccountRead)
+async def create_account_session(
     account_id: UUID,
-    payload: AccountLogin | None = None,
     session_service: BrowserSessionService = Depends(browser_session_service),
 ) -> AccountRead:
-    return await session_service.login(account_id, payload)
+    return await session_service.create(account_id)
+
+
+@router.post("/{account_id}/session/finish", response_model=AccountRead)
+async def finish_account_session(
+    account_id: UUID,
+    session_service: BrowserSessionService = Depends(browser_session_service),
+) -> AccountRead:
+    return await session_service.finish(account_id)
 
 
 @router.post("/{account_id}/session/validate", response_model=AccountRead)
@@ -92,14 +99,6 @@ async def delete_account_session(
     session_service: BrowserSessionService = Depends(browser_session_service),
 ) -> AccountRead:
     return await session_service.delete(account_id)
-
-
-@router.post("/{account_id}/session/logout", response_model=AccountRead)
-async def logout_account_session(
-    account_id: UUID,
-    session_service: BrowserSessionService = Depends(browser_session_service),
-) -> AccountRead:
-    return await session_service.logout(account_id)
 
 
 @router.post("/{account_id}/browser/open", response_model=AccountRead)

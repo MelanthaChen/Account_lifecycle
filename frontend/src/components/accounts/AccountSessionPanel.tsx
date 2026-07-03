@@ -1,22 +1,19 @@
-import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
+  CheckCircle2,
   ExternalLink,
   Eye,
-  KeyRound,
-  LogIn,
-  LogOut,
+  Play,
   RefreshCw,
   ShieldCheck,
   Trash2
 } from "lucide-react";
 
 import { Button } from "../ui/button";
-import { Input } from "../ui/input";
 import {
+  useCreateAccountSession,
   useDeleteAccountSession,
-  useLoginAccount,
-  useLogoutAccountSession,
+  useFinishAccountSession,
   useOpenAccountBrowser,
   useOpenAccountHome,
   useRefreshAccountSession,
@@ -24,7 +21,7 @@ import {
 } from "../../hooks/useAccounts";
 import { cn } from "../../lib/utils";
 import { useToast } from "../../store/useToast";
-import type { Account, AccountLoginInput } from "../../types/account";
+import type { Account } from "../../types/account";
 
 interface AccountSessionPanelProps {
   account: Account;
@@ -32,117 +29,73 @@ interface AccountSessionPanelProps {
 
 export function AccountSessionPanel({ account }: AccountSessionPanelProps) {
   const { notify } = useToast();
-  const login = useLoginAccount(account.id);
+  const createSession = useCreateAccountSession(account.id);
+  const finishSession = useFinishAccountSession(account.id);
   const validate = useValidateAccountSession(account.id);
   const refresh = useRefreshAccountSession(account.id);
   const deleteSession = useDeleteAccountSession(account.id);
-  const logout = useLogoutAccountSession(account.id);
   const openBrowser = useOpenAccountBrowser(account.id);
   const openHome = useOpenAccountHome(account.id);
 
-  const [loginForm, setLoginForm] = useState<AccountLoginInput>({
-    username: account.saved_username ?? account.username,
-    password: "",
-    remember_credentials: account.remember_credentials,
-    auto_login: account.auto_login,
-    launch_visible_browser: account.launch_visible_browser
-  });
-
   const status = normalizeSessionStatus(account.session_status);
   const hasIdentity = Boolean(account.browser_profile_path || account.storage_directory || account.session_path);
+  const isLoginPending = status === "LOGIN_REQUIRED";
   const isBusy = [
-    login,
+    createSession,
+    finishSession,
     validate,
     refresh,
     deleteSession,
-    logout,
     openBrowser,
     openHome
   ].some((mutation) => mutation.isPending);
 
-  const details = useMemo(
-    () => [
-      ["Session Status", <SessionStatusBadge key="status" status={status} />],
-      ["Storage Directory", account.storage_directory ?? getStorageDirectory(account.session_path)],
-      ["Browser Profile", account.browser_profile_path ?? "Not created"],
-      ["Saved Username", account.saved_username ?? "Not saved"],
-      ["Remember Credentials", account.remember_credentials ? "Enabled" : "Disabled"],
-      ["Auto Login", account.auto_login ? "Enabled" : "Disabled"],
-      ["Visible Browser", account.launch_visible_browser ? "Enabled" : "Disabled"],
-      ["Last Login", formatDate(account.last_login)],
-      ["Last Validation", formatDate(account.last_validation)]
-    ],
-    [account, status]
-  );
-
-  function submitLogin() {
-    const payload: AccountLoginInput = {
-      ...loginForm,
-      username: loginForm.username?.trim() ? loginForm.username.trim() : null,
-      password: loginForm.password?.trim() ? loginForm.password : null
-    };
-
-    login.mutate(payload, {
-      onSuccess: (updated) => {
-        notify(`Session is ${normalizeSessionStatus(updated.session_status)}.`, "success");
-      },
-      onError: () => notify("Unable to complete login.", "error")
-    });
-  }
-
   return (
     <section className="space-y-5">
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="grid gap-4 md:grid-cols-2">
-          {details.map(([label, value]) => (
-            <SessionItem key={label as string} label={label as string} value={value} />
-          ))}
-        </div>
-
-        <div className="rounded-md border border-border bg-white p-4">
-          <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-            <KeyRound size={16} />
-            Login
-          </div>
-          <div className="mt-4 space-y-3">
-            <Input
-              value={loginForm.username ?? ""}
-              onChange={(event) => setLoginForm({ ...loginForm, username: event.target.value })}
-              placeholder="Username"
-            />
-            <Input
-              type="password"
-              value={loginForm.password ?? ""}
-              onChange={(event) => setLoginForm({ ...loginForm, password: event.target.value })}
-              placeholder={account.saved_username ? "Password or saved password" : "Password"}
-            />
-            <div className="space-y-2">
-              <CheckboxField
-                label="Remember Credentials"
-                checked={Boolean(loginForm.remember_credentials)}
-                onChange={(checked) => setLoginForm({ ...loginForm, remember_credentials: checked })}
-              />
-              <CheckboxField
-                label="Auto Login"
-                checked={Boolean(loginForm.auto_login)}
-                onChange={(checked) => setLoginForm({ ...loginForm, auto_login: checked })}
-              />
-              <CheckboxField
-                label="Launch Visible Browser"
-                checked={Boolean(loginForm.launch_visible_browser)}
-                onChange={(checked) => setLoginForm({ ...loginForm, launch_visible_browser: checked })}
-              />
-            </div>
-            <Button type="button" className="w-full" disabled={login.isPending} onClick={submitLogin}>
-              <LogIn size={16} />
-              {login.isPending ? "Logging in..." : "Login"}
-            </Button>
-          </div>
-        </div>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <SessionItem label="Session Status" value={<SessionStatusBadge status={status} />} />
+        <SessionItem label="Storage Directory" value={account.storage_directory ?? getStorageDirectory(account.session_path)} />
+        <SessionItem label="Browser Profile" value={account.browser_profile_path ?? "Not created"} />
+        <SessionItem label="Last Login" value={formatDate(account.last_login)} />
+        <SessionItem label="Last Validation" value={formatDate(account.last_validation)} />
       </div>
+
+      {isLoginPending ? (
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Please complete login in the browser. When finished, click Finish Login.
+        </div>
+      ) : null}
 
       <div className="rounded-md border border-border bg-white p-4">
         <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            disabled={createSession.isPending || isBusy}
+            onClick={() =>
+              createSession.mutate(undefined, {
+                onSuccess: () => notify("Browser opened. Complete login, then click Finish Login.", "success"),
+                onError: () => notify("Unable to create session.", "error")
+              })
+            }
+          >
+            <Play size={16} />
+            {createSession.isPending ? "Opening..." : "Create Session"}
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={finishSession.isPending || !isLoginPending}
+            onClick={() =>
+              finishSession.mutate(undefined, {
+                onSuccess: (updated) =>
+                  notify(`Session is ${normalizeSessionStatus(updated.session_status)}.`, "success"),
+                onError: () => notify("Unable to finish login.", "error")
+              })
+            }
+          >
+            <CheckCircle2 size={16} />
+            {finishSession.isPending ? "Finishing..." : "Finish Login"}
+          </Button>
           <Button
             type="button"
             variant="secondary"
@@ -156,7 +109,7 @@ export function AccountSessionPanel({ account }: AccountSessionPanelProps) {
             }
           >
             <ShieldCheck size={16} />
-            {validate.isPending ? "Validating..." : "Validate"}
+            {validate.isPending ? "Validating..." : "Validate Session"}
           </Button>
           <Button
             type="button"
@@ -170,21 +123,7 @@ export function AccountSessionPanel({ account }: AccountSessionPanelProps) {
             }
           >
             <RefreshCw size={16} className={refresh.isPending ? "animate-spin" : ""} />
-            Refresh
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            disabled={logout.isPending || !hasIdentity}
-            onClick={() =>
-              logout.mutate(undefined, {
-                onSuccess: () => notify("Logged out of browser identity.", "success"),
-                onError: () => notify("Unable to log out.", "error")
-              })
-            }
-          >
-            <LogOut size={16} />
-            Logout
+            Refresh Session
           </Button>
           <Button
             type="button"
@@ -198,7 +137,7 @@ export function AccountSessionPanel({ account }: AccountSessionPanelProps) {
             }
           >
             <Eye size={16} />
-            {openBrowser.isPending ? "Browser open..." : "Open Browser"}
+            {openBrowser.isPending ? "Browser Open..." : "Open Browser"}
           </Button>
           <Button
             type="button"
@@ -206,13 +145,13 @@ export function AccountSessionPanel({ account }: AccountSessionPanelProps) {
             disabled={openHome.isPending || isBusy}
             onClick={() =>
               openHome.mutate(undefined, {
-                onSuccess: () => notify(`${account.platform} closed.`, "success"),
-                onError: () => notify(`Unable to open ${account.platform}.`, "error")
+                onSuccess: () => notify(`${platformLabel(account.platform)} closed.`, "success"),
+                onError: () => notify(`Unable to open ${platformLabel(account.platform)}.`, "error")
               })
             }
           >
             <ExternalLink size={16} />
-            {openHome.isPending ? "Open..." : `Open ${platformLabel(account.platform)}`}
+            {openHome.isPending ? "Opening..." : `Open ${platformLabel(account.platform)}`}
           </Button>
           <Button
             type="button"
@@ -220,8 +159,8 @@ export function AccountSessionPanel({ account }: AccountSessionPanelProps) {
             disabled={deleteSession.isPending || !hasIdentity}
             onClick={() =>
               deleteSession.mutate(undefined, {
-                onSuccess: () => notify("Browser identity files deleted.", "success"),
-                onError: () => notify("Unable to delete browser identity.", "error")
+                onSuccess: () => notify("Session deleted.", "success"),
+                onError: () => notify("Unable to delete session.", "error")
               })
             }
           >
@@ -247,7 +186,8 @@ function SessionStatusBadge({ status }: { status: string }) {
   const classes: Record<string, string> = {
     VALID: "bg-emerald-50 text-emerald-700 ring-emerald-200",
     INVALID: "bg-red-50 text-red-700 ring-red-200",
-    NOT_LOGGED_IN: "bg-slate-100 text-slate-600 ring-slate-200",
+    EXPIRED: "bg-red-50 text-red-700 ring-red-200",
+    MISSING: "bg-slate-100 text-slate-600 ring-slate-200",
     LOGIN_REQUIRED: "bg-amber-50 text-amber-700 ring-amber-200"
   };
 
@@ -255,39 +195,17 @@ function SessionStatusBadge({ status }: { status: string }) {
     <span
       className={cn(
         "inline-flex rounded-full px-2 py-0.5 text-xs font-medium ring-1",
-        classes[status] ?? classes.NOT_LOGGED_IN
+        classes[status] ?? classes.MISSING
       )}
     >
-      {status.replaceAll("_", " ")}
+      {status === "MISSING" ? "NOT LOGGED IN" : status.replaceAll("_", " ")}
     </span>
-  );
-}
-
-function CheckboxField({
-  checked,
-  label,
-  onChange
-}: {
-  checked: boolean;
-  label: string;
-  onChange: (checked: boolean) => void;
-}) {
-  return (
-    <label className="inline-flex items-center gap-2 text-sm font-medium">
-      <input
-        type="checkbox"
-        className="h-4 w-4 rounded border-border accent-primary"
-        checked={checked}
-        onChange={(event) => onChange(event.target.checked)}
-      />
-      {label}
-    </label>
   );
 }
 
 function normalizeSessionStatus(value: string | null) {
   if (!value) {
-    return "NOT_LOGGED_IN";
+    return "MISSING";
   }
   return value.toUpperCase().replaceAll(" ", "_");
 }
@@ -301,8 +219,8 @@ function getStorageDirectory(sessionPath: string | null) {
     return "Not created";
   }
 
-  return sessionPath.endsWith("/state.json")
-    ? sessionPath.slice(0, -"/state.json".length)
+  return sessionPath.endsWith("/storage_state.json")
+    ? sessionPath.slice(0, -"/storage_state.json".length)
     : sessionPath;
 }
 

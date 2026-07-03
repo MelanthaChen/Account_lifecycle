@@ -59,8 +59,4 @@ class Account(Base):
     provider: Mapped[str | None] = mapped_column(String(80))
     browser_profile_path: Mapped[str | None] = mapped_column(String(500))
     storage_directory: Mapped[str | None] = mapped_column(String(500))
-    saved_username: Mapped[str | None] = mapped_column(String(160))
-    saved_password: Mapped[str | None] = mapped_column(String(500))
-    remember_credentials: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    auto_login: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     launch_visible_browser: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

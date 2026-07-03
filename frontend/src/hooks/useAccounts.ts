@@ -2,19 +2,19 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   createAccount,
+  createAccountSession,
   deleteAccount,
   deleteAccountSession,
+  finishAccountSession,
   getAccount,
   listAccounts,
-  loginAccount,
-  logoutAccountSession,
   openAccountBrowser,
   openAccountHome,
   refreshAccountSession,
   updateAccount,
   validateAccountSession
 } from "../api/accounts";
-import type { AccountInput, AccountLoginInput } from "../types/account";
+import type { AccountInput } from "../types/account";
 
 export function useAccounts() {
   return useQuery({ queryKey: ["accounts"], queryFn: listAccounts });
@@ -60,10 +60,18 @@ function invalidateAccount(queryClient: ReturnType<typeof useQueryClient>, accou
   queryClient.invalidateQueries({ queryKey: ["accounts", accountId] });
 }
 
-export function useLoginAccount(accountId: string) {
+export function useCreateAccountSession(accountId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: AccountLoginInput) => loginAccount(accountId, input),
+    mutationFn: () => createAccountSession(accountId),
+    onSuccess: () => invalidateAccount(queryClient, accountId)
+  });
+}
+
+export function useFinishAccountSession(accountId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => finishAccountSession(accountId),
     onSuccess: () => invalidateAccount(queryClient, accountId)
   });
 }
@@ -88,14 +96,6 @@ export function useDeleteAccountSession(accountId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () => deleteAccountSession(accountId),
-    onSuccess: () => invalidateAccount(queryClient, accountId)
-  });
-}
-
-export function useLogoutAccountSession(accountId: string) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: () => logoutAccountSession(accountId),
     onSuccess: () => invalidateAccount(queryClient, accountId)
   });
 }

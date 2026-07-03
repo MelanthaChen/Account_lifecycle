@@ -25,10 +25,6 @@ function buildInitialState(account?: Account | null): AccountInput {
     notes: account?.notes ?? "",
     is_active: account?.is_active ?? true,
     provider: account?.provider ?? account?.platform ?? "reddit",
-    saved_username: account?.saved_username ?? account?.username ?? "",
-    saved_password: "",
-    remember_credentials: account?.remember_credentials ?? false,
-    auto_login: account?.auto_login ?? false,
     launch_visible_browser: account?.launch_visible_browser ?? true
   };
 }
@@ -61,14 +57,8 @@ export function AccountForm({ account, onSubmit, isPending }: AccountFormProps) 
       nickname: form.nickname.trim(),
       username: form.username.trim(),
       notes: form.notes?.trim() ? form.notes.trim() : null,
-      provider: form.provider?.trim() ? form.provider.trim() : form.platform,
-      saved_username: form.saved_username?.trim() ? form.saved_username.trim() : null,
-      saved_password: form.saved_password?.trim() ? form.saved_password : null
+      provider: form.provider?.trim() ? form.provider.trim() : form.platform
     };
-
-    if (account && !form.saved_password?.trim()) {
-      delete payload.saved_password;
-    }
 
     onSubmit(payload);
   }
@@ -127,38 +117,11 @@ export function AccountForm({ account, onSubmit, isPending }: AccountFormProps) 
           placeholder="Optional account context"
         />
       </Field>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Saved Username">
-          <Input
-            value={form.saved_username ?? ""}
-            onChange={(event) => setForm({ ...form, saved_username: event.target.value })}
-            placeholder="Optional login username"
-          />
-        </Field>
-        <Field label="Saved Password">
-          <Input
-            type="password"
-            value={form.saved_password ?? ""}
-            onChange={(event) => setForm({ ...form, saved_password: event.target.value })}
-            placeholder={account ? "Leave blank to keep existing" : "Optional login password"}
-          />
-        </Field>
-      </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <CheckboxField
           label="Active"
           checked={form.is_active}
           onChange={(checked) => setForm({ ...form, is_active: checked })}
-        />
-        <CheckboxField
-          label="Remember Credentials"
-          checked={form.remember_credentials}
-          onChange={(checked) => setForm({ ...form, remember_credentials: checked })}
-        />
-        <CheckboxField
-          label="Auto Login"
-          checked={form.auto_login}
-          onChange={(checked) => setForm({ ...form, auto_login: checked })}
         />
         <CheckboxField
           label="Launch Visible Browser"
