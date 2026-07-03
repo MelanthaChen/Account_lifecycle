@@ -11,16 +11,30 @@ if TYPE_CHECKING:
 @dataclass(frozen=True)
 class BrowserSessionResult:
     session_path: str | None = None
+    storage_directory: str | None = None
+    browser_profile_path: str | None = None
     session_status: str | None = None
     last_login_changed: bool = False
     last_validation_changed: bool = False
+
+
+@dataclass(frozen=True)
+class BrowserLoginRequest:
+    username: str | None = None
+    password: str | None = None
+    remember_credentials: bool | None = None
+    auto_login: bool | None = None
+    launch_visible_browser: bool | None = None
 
 
 class BrowserSessionProvider(Protocol):
     def get_storage_directory(self, account: Account) -> Path:
         ...
 
-    def login(self, account: Account) -> BrowserSessionResult:
+    def get_profile_directory(self, account: Account) -> Path:
+        ...
+
+    def login(self, account: Account, request: BrowserLoginRequest) -> BrowserSessionResult:
         ...
 
     def validate(self, account: Account) -> BrowserSessionResult:
@@ -30,4 +44,16 @@ class BrowserSessionProvider(Protocol):
         ...
 
     def delete(self, account: Account) -> BrowserSessionResult:
+        ...
+
+    def logout(self, account: Account) -> BrowserSessionResult:
+        ...
+
+    def open_browser(self, account: Account) -> BrowserSessionResult:
+        ...
+
+    def open_url(self, account: Account, url: str) -> BrowserSessionResult:
+        ...
+
+    def open_home(self, account: Account) -> BrowserSessionResult:
         ...

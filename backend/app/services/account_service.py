@@ -26,7 +26,9 @@ class AccountService:
         existing = await self.accounts.get_by_platform_username(payload.platform, payload.username)
         if existing is not None:
             raise HTTPException(status.HTTP_409_CONFLICT, "Account username is already managed")
-        account = Account(**payload.model_dump())
+        values = payload.model_dump()
+        self._normalize_credential_values(values)
+        account = Account(**values)
         await self.accounts.create(account)
         await self.session.commit()
         await self.session.refresh(account)
@@ -43,6 +45,8 @@ class AccountService:
                 raise HTTPException(status.HTTP_409_CONFLICT, "Account username is already managed")
         for key, value in values.items():
             setattr(account, key, value)
+        if not account.remember_credentials:
+            account.saved_password = None
         await self.session.commit()
         await self.session.refresh(account)
         return account
@@ -51,3 +55,8 @@ class AccountService:
         account = await self.get_account(account_id)
         await self.accounts.delete(account)
         await self.session.commit()
+
+    @staticmethod
+    def _normalize_credential_values(values: dict) -> None:
+        if not values.get("remember_credentials"):
+            values["saved_password"] = None

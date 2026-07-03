@@ -18,6 +18,12 @@ export interface Account {
   last_validation: string | null;
   browser_profile: string | null;
   provider: string | null;
+  browser_profile_path: string | null;
+  storage_directory: string | null;
+  saved_username: string | null;
+  remember_credentials: boolean;
+  auto_login: boolean;
+  launch_visible_browser: boolean;
 }
 
 export interface AccountInput {
@@ -27,4 +33,18 @@ export interface AccountInput {
   status: AccountStatus;
   notes?: string | null;
   is_active: boolean;
+  provider?: string | null;
+  saved_username?: string | null;
+  saved_password?: string | null;
+  remember_credentials: boolean;
+  auto_login: boolean;
+  launch_visible_browser: boolean;
+}
+
+export interface AccountLoginInput {
+  username?: string | null;
+  password?: string | null;
+  remember_credentials?: boolean | null;
+  auto_login?: boolean | null;
+  launch_visible_browser?: boolean | null;
 }

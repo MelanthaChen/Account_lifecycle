@@ -7,11 +7,14 @@ import {
   getAccount,
   listAccounts,
   loginAccount,
+  logoutAccountSession,
+  openAccountBrowser,
+  openAccountHome,
   refreshAccountSession,
   updateAccount,
   validateAccountSession
 } from "../api/accounts";
-import type { AccountInput } from "../types/account";
+import type { AccountInput, AccountLoginInput } from "../types/account";
 
 export function useAccounts() {
   return useQuery({ queryKey: ["accounts"], queryFn: listAccounts });
@@ -60,7 +63,7 @@ function invalidateAccount(queryClient: ReturnType<typeof useQueryClient>, accou
 export function useLoginAccount(accountId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => loginAccount(accountId),
+    mutationFn: (input: AccountLoginInput) => loginAccount(accountId, input),
     onSuccess: () => invalidateAccount(queryClient, accountId)
   });
 }
@@ -85,6 +88,30 @@ export function useDeleteAccountSession(accountId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () => deleteAccountSession(accountId),
+    onSuccess: () => invalidateAccount(queryClient, accountId)
+  });
+}
+
+export function useLogoutAccountSession(accountId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => logoutAccountSession(accountId),
+    onSuccess: () => invalidateAccount(queryClient, accountId)
+  });
+}
+
+export function useOpenAccountBrowser(accountId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => openAccountBrowser(accountId),
+    onSuccess: () => invalidateAccount(queryClient, accountId)
+  });
+}
+
+export function useOpenAccountHome(accountId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => openAccountHome(accountId),
     onSuccess: () => invalidateAccount(queryClient, accountId)
   });
 }

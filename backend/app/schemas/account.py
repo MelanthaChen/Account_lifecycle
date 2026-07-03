@@ -13,10 +13,15 @@ class AccountBase(BaseModel):
     platform: Platform = Platform.REDDIT
     notes: str | None = None
     is_active: bool = True
+    provider: str | None = Field(default=None, max_length=80)
+    saved_username: str | None = Field(default=None, max_length=160)
+    remember_credentials: bool = False
+    auto_login: bool = False
+    launch_visible_browser: bool = True
 
 
 class AccountCreate(AccountBase):
-    pass
+    saved_password: str | None = Field(default=None, max_length=500)
 
 
 class AccountUpdate(BaseModel):
@@ -26,6 +31,22 @@ class AccountUpdate(BaseModel):
     status: AccountStatus | None = None
     notes: str | None = None
     is_active: bool | None = None
+    provider: str | None = Field(default=None, max_length=80)
+    browser_profile_path: str | None = Field(default=None, max_length=500)
+    storage_directory: str | None = Field(default=None, max_length=500)
+    saved_username: str | None = Field(default=None, max_length=160)
+    saved_password: str | None = Field(default=None, max_length=500)
+    remember_credentials: bool | None = None
+    auto_login: bool | None = None
+    launch_visible_browser: bool | None = None
+
+
+class AccountLogin(BaseModel):
+    username: str | None = Field(default=None, max_length=160)
+    password: str | None = Field(default=None, max_length=500)
+    remember_credentials: bool | None = None
+    auto_login: bool | None = None
+    launch_visible_browser: bool | None = None
 
 
 class AccountRead(AccountBase):
@@ -38,6 +59,7 @@ class AccountRead(AccountBase):
     last_login: datetime | None = None
     last_validation: datetime | None = None
     browser_profile: str | None = None
-    provider: str | None = None
+    browser_profile_path: str | None = None
+    storage_directory: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
