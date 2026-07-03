@@ -16,6 +16,7 @@ class BrowserSessionResult:
     session_status: str | None = None
     last_login_changed: bool = False
     last_validation_changed: bool = False
+    active_session: object | None = None
 
 
 class BrowserSessionProvider(Protocol):
@@ -28,7 +29,10 @@ class BrowserSessionProvider(Protocol):
     def create_session(self, account: Account) -> BrowserSessionResult:
         ...
 
-    def finish_session(self, account: Account) -> BrowserSessionResult:
+    def finish_session(self, account: Account, active_session: object | None = None) -> BrowserSessionResult:
+        ...
+
+    def close_session(self, active_session: object) -> None:
         ...
 
     def validate(self, account: Account) -> BrowserSessionResult:

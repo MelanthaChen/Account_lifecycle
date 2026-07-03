@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
 from app.repositories.account_repository import AccountRepository
-from app.services.browser_manager import BrowserManager
+from app.services.browser_manager import browser_manager
 from app.services.browser_sessions.base import BrowserSessionResult
 
 
@@ -14,7 +14,7 @@ class BrowserSessionService:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
         self.accounts = AccountRepository(session)
-        self.browser_manager = BrowserManager()
+        self.browser_manager = browser_manager
 
     async def create(self, account_id: UUID) -> Account:
         account = await self._get_account(account_id)

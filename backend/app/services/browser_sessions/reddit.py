@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+import logging
 from pathlib import Path
 import re
 import shutil
@@ -14,6 +15,8 @@ VALID_STATUS = "valid"
 INVALID_STATUS = "invalid"
 LOGIN_REQUIRED_STATUS = "login_required"
 MISSING_STATUS = "missing"
+PROJECT_ROOT = Path(__file__).resolve().parents[4]
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -27,19 +30,19 @@ class RedditSessionProvider:
     home_url = "https://www.reddit.com/"
     login_url = "https://www.reddit.com/login/"
 
-    def __init__(self, storage_root: Path | str = "storage") -> None:
+    def __init__(self, storage_root: Path | str | None = None) -> None:
+        storage_root = storage_root or PROJECT_ROOT / "storage"
         self.storage_root = Path(storage_root)
-        self._active_sessions: dict[str, ActiveBrowserSession] = {}
         self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="reddit-session-provider")
 
     def get_storage_directory(self, account: Account) -> Path:
         if account.storage_directory:
-            return Path(account.storage_directory)
+            return self._resolve_storage_path(Path(account.storage_directory))
         return self.storage_root / self.platform / self._account_directory_name(account)
 
     def get_profile_directory(self, account: Account) -> Path:
         if account.browser_profile_path:
-            return Path(account.browser_profile_path)
+            return self._resolve_storage_path(Path(account.browser_profile_path))
         return self.get_storage_directory(account) / "profile"
 
     def get_state_path(self, account: Account) -> Path:
@@ -47,9 +50,6 @@ class RedditSessionProvider:
 
     def create_session(self, account: Account) -> BrowserSessionResult:
         return self._run(self._create_session, account)
-
-    def finish_session(self, account: Account) -> BrowserSessionResult:
-        return self._run(self._finish_session, account)
 
     def validate(self, account: Account) -> BrowserSessionResult:
         return self._run(self._validate, account)
@@ -59,6 +59,9 @@ class RedditSessionProvider:
 
     def delete(self, account: Account) -> BrowserSessionResult:
         return self._run(self._delete, account)
+
+    def close_session(self, active_session: object) -> None:
+        self._run(self._close_session, active_session)
 
     def logout(self, account: Account) -> BrowserSessionResult:
         return self._run(self._logout, account)
@@ -77,8 +80,9 @@ class RedditSessionProvider:
 
         storage_directory = self.ensure_storage_directories(account)
         profile_directory = self.get_profile_directory(account)
-        self._close_active_session(account)
 
+        logger.info("Creating storage directory: %s", storage_directory)
+        logger.info("Launching persistent profile: %s", profile_directory)
         playwright = sync_playwright().start()
         context = playwright.chromium.launch_persistent_context(
             user_data_dir=str(profile_directory),
@@ -88,31 +92,47 @@ class RedditSessionProvider:
         )
         page = context.pages[0] if context.pages else context.new_page()
         page.goto(self.login_url, wait_until="domcontentloaded")
-        self._active_sessions[str(account.id)] = ActiveBrowserSession(
+        active_session = ActiveBrowserSession(
             playwright=playwright,
             context=context,
         )
+        logger.info("Waiting for manual login...")
 
         return self._result(
             account,
             session_status=LOGIN_REQUIRED_STATUS,
+            active_session=active_session,
         )
 
-    def _finish_session(self, account: Account) -> BrowserSessionResult:
-        active_session = self._active_sessions.pop(str(account.id), None)
+    def finish_session(self, account: Account, active_session: object | None = None) -> BrowserSessionResult:
+        return self._run(self._finish_session, account, active_session)
+
+    def _finish_session(self, account: Account, active_session: object | None = None) -> BrowserSessionResult:
+        logger.info("Finish Session received.")
         if active_session is None:
+            logger.info("No running browser context found. Validating existing profile.")
             return self._validate(account)
 
         state_path = self.get_state_path(account)
         try:
             context = active_session.context
+            logger.info("Saving storage state...")
+            logger.info("%s", state_path)
+            context.storage_state(path=str(state_path))
+            file_size = self._verify_storage_state_written(state_path)
+            logger.info("Storage state written successfully.")
+            logger.info("File exists: %s", state_path.exists())
+            logger.info("File size: %s KB", max(1, file_size // 1024))
             cookies = context.cookies(self.home_url)
             is_valid = self._has_authenticated_cookie(cookies)
-            if is_valid:
-                context.storage_state(path=str(state_path))
         finally:
+            logger.info("Closing browser.")
             active_session.context.close()
             active_session.playwright.stop()
+
+        logger.info("Updating database.")
+        if is_valid:
+            logger.info("Session complete.")
 
         return self._result(
             account,
@@ -159,7 +179,6 @@ class RedditSessionProvider:
         )
 
     def _delete(self, account: Account) -> BrowserSessionResult:
-        self._close_active_session(account)
         storage_directory = self.get_storage_directory(account)
 
         if storage_directory.exists():
@@ -236,6 +255,7 @@ class RedditSessionProvider:
         session_status: str | None = None,
         last_login_changed: bool = False,
         last_validation_changed: bool = False,
+        active_session: object | None = None,
     ) -> BrowserSessionResult:
         storage_directory = self.get_storage_directory(account)
         return BrowserSessionResult(
@@ -245,17 +265,30 @@ class RedditSessionProvider:
             session_status=session_status,
             last_login_changed=last_login_changed,
             last_validation_changed=last_validation_changed,
+            active_session=active_session,
         )
 
     def _run(self, func, *args):
         return self._executor.submit(func, *args).result()
 
-    def _close_active_session(self, account: Account) -> None:
-        active_session = self._active_sessions.pop(str(account.id), None)
-        if active_session is None:
-            return
+    @staticmethod
+    def _close_session(active_session: object) -> None:
         active_session.context.close()
         active_session.playwright.stop()
+
+    def _resolve_storage_path(self, path: Path) -> Path:
+        if path.is_absolute():
+            return path
+        return PROJECT_ROOT / path
+
+    @staticmethod
+    def _verify_storage_state_written(path: Path) -> int:
+        if not path.exists():
+            raise RuntimeError(f"Storage state was not written: {path}")
+        file_size = path.stat().st_size
+        if file_size <= 0:
+            raise RuntimeError(f"Storage state is empty: {path}")
+        return file_size
 
     @staticmethod
     def _account_directory_name(account: Account) -> str:
