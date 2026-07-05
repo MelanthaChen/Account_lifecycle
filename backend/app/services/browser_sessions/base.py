@@ -35,6 +35,9 @@ class BrowserSessionProvider(Protocol):
     async def close_session(self, active_session: object) -> None:
         ...
 
+    async def open_persistent_context(self, account: Account, *, headless: bool) -> object:
+        ...
+
     async def validate(self, account: Account) -> BrowserSessionResult:
         ...
 

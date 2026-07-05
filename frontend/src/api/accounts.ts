@@ -25,6 +25,11 @@ export async function deleteAccount(accountId: string) {
   await api.delete(`/accounts/${accountId}`);
 }
 
+export async function syncAccountProfile(accountId: string) {
+  const response = await api.post<Account>(`/accounts/${accountId}/sync-profile`);
+  return response.data;
+}
+
 export async function createAccountSession(accountId: string) {
   const response = await api.post<Account>(`/accounts/${accountId}/session/create`);
   return response.data;

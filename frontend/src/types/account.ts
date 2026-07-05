@@ -21,6 +21,17 @@ export interface Account {
   browser_profile_path: string | null;
   storage_directory: string | null;
   launch_visible_browser: boolean;
+  display_name: string | null;
+  reddit_username: string | null;
+  avatar_url: string | null;
+  karma_post: number | null;
+  karma_comment: number | null;
+  cake_day: string | null;
+  verified_email: boolean | null;
+  is_nsfw: boolean | null;
+  is_moderator: boolean | null;
+  is_gold: boolean | null;
+  last_profile_sync: string | null;
 }
 
 export interface AccountInput {

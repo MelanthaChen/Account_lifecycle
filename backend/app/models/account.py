@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, DateTime, Enum, String, Text, UniqueConstraint, func
+from sqlalchemy import Boolean, DateTime, Enum, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -60,3 +60,14 @@ class Account(Base):
     browser_profile_path: Mapped[str | None] = mapped_column(String(500))
     storage_directory: Mapped[str | None] = mapped_column(String(500))
     launch_visible_browser: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    display_name: Mapped[str | None] = mapped_column(String(160))
+    reddit_username: Mapped[str | None] = mapped_column(String(120))
+    avatar_url: Mapped[str | None] = mapped_column(String(1000))
+    karma_post: Mapped[int | None] = mapped_column(Integer)
+    karma_comment: Mapped[int | None] = mapped_column(Integer)
+    cake_day: Mapped[str | None] = mapped_column(String(120))
+    verified_email: Mapped[bool | None] = mapped_column(Boolean)
+    is_nsfw: Mapped[bool | None] = mapped_column(Boolean)
+    is_moderator: Mapped[bool | None] = mapped_column(Boolean)
+    is_gold: Mapped[bool | None] = mapped_column(Boolean)
+    last_profile_sync: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

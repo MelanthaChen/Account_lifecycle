@@ -61,6 +61,9 @@ class RedditSessionProvider:
     async def close_session(self, active_session: object) -> None:
         await self._close_session(active_session)
 
+    async def open_persistent_context(self, account: Account, *, headless: bool) -> object:
+        return await self._open_persistent_context(account, headless=headless)
+
     async def logout(self, account: Account) -> BrowserSessionResult:
         return await self._logout(account)
 
@@ -74,26 +77,15 @@ class RedditSessionProvider:
         return await self.open_url(account, self.home_url)
 
     async def _create_session(self, account: Account) -> BrowserSessionResult:
-        from playwright.async_api import async_playwright
-
         storage_directory = self.ensure_storage_directories(account)
         profile_directory = self.get_profile_directory(account)
 
         logger.info("Creating storage directory: %s", storage_directory)
         logger.info("Launching persistent profile: %s", profile_directory)
-        playwright = await async_playwright().start()
-        context = await playwright.chromium.launch_persistent_context(
-            user_data_dir=str(profile_directory),
-            headless=not account.launch_visible_browser,
-            accept_downloads=True,
-            downloads_path=str(storage_directory / "downloads"),
-        )
+        active_session = await self._open_persistent_context(account, headless=not account.launch_visible_browser)
+        context = active_session.context
         page = context.pages[0] if context.pages else await context.new_page()
         await page.goto(self.login_url, wait_until="domcontentloaded")
-        active_session = ActiveBrowserSession(
-            playwright=playwright,
-            context=context,
-        )
         logger.info("Waiting for manual login...")
 
         return self._result(
@@ -141,10 +133,7 @@ class RedditSessionProvider:
         )
 
     async def _validate(self, account: Account) -> BrowserSessionResult:
-        from playwright.async_api import async_playwright
-
         state_path = Path(account.session_path) if account.session_path else self.get_state_path(account)
-        storage_directory = self.ensure_storage_directories(account)
         profile_directory = self.get_profile_directory(account)
 
         if not profile_directory.exists():
@@ -155,19 +144,16 @@ class RedditSessionProvider:
                 last_validation_changed=True,
             )
 
-        async with async_playwright() as playwright:
-            context = await playwright.chromium.launch_persistent_context(
-                user_data_dir=str(profile_directory),
-                headless=True,
-                accept_downloads=True,
-                downloads_path=str(storage_directory / "downloads"),
-            )
+        active_session = await self._open_persistent_context(account, headless=True)
+        try:
+            context = active_session.context
             page = context.pages[0] if context.pages else await context.new_page()
             await page.goto(self.home_url, wait_until="domcontentloaded")
             await page.wait_for_timeout(1500)
             cookies = await context.cookies(self.home_url)
             await context.storage_state(path=str(state_path))
-            await context.close()
+        finally:
+            await self._close_session(active_session)
 
         return self._result(
             account,
@@ -190,21 +176,14 @@ class RedditSessionProvider:
         )
 
     async def _logout(self, account: Account) -> BrowserSessionResult:
-        from playwright.async_api import async_playwright
-
-        storage_directory = self.ensure_storage_directories(account)
-        profile_directory = self.get_profile_directory(account)
         state_path = self.get_state_path(account)
 
-        async with async_playwright() as playwright:
-            context = await playwright.chromium.launch_persistent_context(
-                user_data_dir=str(profile_directory),
-                headless=True,
-                accept_downloads=True,
-                downloads_path=str(storage_directory / "downloads"),
-            )
+        active_session = await self._open_persistent_context(account, headless=True)
+        try:
+            context = active_session.context
             await context.clear_cookies()
-            await context.close()
+        finally:
+            await self._close_session(active_session)
 
         if state_path.exists():
             state_path.unlink()
@@ -217,25 +196,17 @@ class RedditSessionProvider:
         )
 
     async def _open_url(self, account: Account, url: str) -> BrowserSessionResult:
-        from playwright.async_api import async_playwright
-
-        storage_directory = self.ensure_storage_directories(account)
-        profile_directory = self.get_profile_directory(account)
-
-        async with async_playwright() as playwright:
-            context = await playwright.chromium.launch_persistent_context(
-                user_data_dir=str(profile_directory),
-                headless=False,
-                accept_downloads=True,
-                downloads_path=str(storage_directory / "downloads"),
-            )
+        active_session = await self._open_persistent_context(account, headless=False)
+        try:
+            context = active_session.context
             page = context.pages[0] if context.pages else await context.new_page()
             if url != "about:blank":
                 await page.goto(url, wait_until="domcontentloaded")
             while any(not item.is_closed() for item in context.pages):
                 await page.wait_for_timeout(1000)
             await context.storage_state(path=str(self.get_state_path(account)))
-            await context.close()
+        finally:
+            await self._close_session(active_session)
 
         return self._result(account, session_status=account.session_status)
 
@@ -270,6 +241,20 @@ class RedditSessionProvider:
     async def _close_session(active_session: object) -> None:
         await active_session.context.close()
         await active_session.playwright.stop()
+
+    async def _open_persistent_context(self, account: Account, *, headless: bool) -> ActiveBrowserSession:
+        from playwright.async_api import async_playwright
+
+        storage_directory = self.ensure_storage_directories(account)
+        profile_directory = self.get_profile_directory(account)
+        playwright = await async_playwright().start()
+        context = await playwright.chromium.launch_persistent_context(
+            user_data_dir=str(profile_directory),
+            headless=headless,
+            accept_downloads=True,
+            downloads_path=str(storage_directory / "downloads"),
+        )
+        return ActiveBrowserSession(playwright=playwright, context=context)
 
     def _resolve_storage_path(self, path: Path) -> Path:
         if path.is_absolute():

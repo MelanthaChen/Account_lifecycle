@@ -46,5 +46,16 @@ class AccountRead(AccountBase):
     browser_profile: str | None = None
     browser_profile_path: str | None = None
     storage_directory: str | None = None
+    display_name: str | None = None
+    reddit_username: str | None = None
+    avatar_url: str | None = None
+    karma_post: int | None = None
+    karma_comment: int | None = None
+    cake_day: str | None = None
+    verified_email: bool | None = None
+    is_nsfw: bool | None = None
+    is_moderator: bool | None = None
+    is_gold: bool | None = None
+    last_profile_sync: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)

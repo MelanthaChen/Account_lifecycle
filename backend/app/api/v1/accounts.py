@@ -61,6 +61,14 @@ async def delete_account(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+@router.post("/{account_id}/sync-profile", response_model=AccountRead)
+async def sync_account_profile(
+    account_id: UUID,
+    account_service: AccountService = Depends(service),
+) -> AccountRead:
+    return await account_service.sync_profile(account_id)
+
+
 @router.post("/{account_id}/session/create", response_model=AccountRead)
 async def create_account_session(
     account_id: UUID,

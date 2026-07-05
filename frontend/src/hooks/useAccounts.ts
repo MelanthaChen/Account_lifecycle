@@ -11,6 +11,7 @@ import {
   openAccountBrowser,
   openAccountHome,
   refreshAccountSession,
+  syncAccountProfile,
   updateAccount,
   validateAccountSession
 } from "../api/accounts";
@@ -64,6 +65,14 @@ export function useCreateAccountSession(accountId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () => createAccountSession(accountId),
+    onSuccess: () => invalidateAccount(queryClient, accountId)
+  });
+}
+
+export function useSyncAccountProfile(accountId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => syncAccountProfile(accountId),
     onSuccess: () => invalidateAccount(queryClient, accountId)
   });
 }

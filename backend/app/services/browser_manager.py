@@ -34,6 +34,14 @@ class BrowserManager:
         active_session = self._active_sessions.pop(str(account.id), None)
         return await provider.finish_session(account, active_session)
 
+    async def open_persistent_context(self, account: Account, *, headless: bool) -> object:
+        provider = browser_session_provider_registry.get(account.platform)
+        return await provider.open_persistent_context(account, headless=headless)
+
+    async def close_session(self, account: Account, active_session: object) -> None:
+        provider = browser_session_provider_registry.get(account.platform)
+        await provider.close_session(active_session)
+
     async def validate_session(self, account: Account) -> BrowserSessionResult:
         provider = browser_session_provider_registry.get(account.platform)
         return await provider.validate(account)
