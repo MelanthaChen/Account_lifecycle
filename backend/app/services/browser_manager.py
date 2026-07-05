@@ -23,8 +23,8 @@ class BrowserManager:
         provider = browser_session_provider_registry.get(account.platform)
         active_session = self._active_sessions.pop(str(account.id), None)
         if active_session is not None:
-            provider.close_session(active_session)
-        result = provider.create_session(account)
+            await provider.close_session(active_session)
+        result = await provider.create_session(account)
         if result.active_session is not None:
             self._active_sessions[str(account.id)] = result.active_session
         return result
@@ -32,38 +32,38 @@ class BrowserManager:
     async def finish_session(self, account: Account) -> BrowserSessionResult:
         provider = browser_session_provider_registry.get(account.platform)
         active_session = self._active_sessions.pop(str(account.id), None)
-        return provider.finish_session(account, active_session)
+        return await provider.finish_session(account, active_session)
 
     async def validate_session(self, account: Account) -> BrowserSessionResult:
         provider = browser_session_provider_registry.get(account.platform)
-        return provider.validate(account)
+        return await provider.validate(account)
 
     async def refresh_session(self, account: Account) -> BrowserSessionResult:
         provider = browser_session_provider_registry.get(account.platform)
-        return provider.refresh(account)
+        return await provider.refresh(account)
 
     async def logout(self, account: Account) -> BrowserSessionResult:
         provider = browser_session_provider_registry.get(account.platform)
-        return provider.logout(account)
+        return await provider.logout(account)
 
     async def delete_session(self, account: Account) -> BrowserSessionResult:
         provider = browser_session_provider_registry.get(account.platform)
         active_session = self._active_sessions.pop(str(account.id), None)
         if active_session is not None:
-            provider.close_session(active_session)
-        return provider.delete(account)
+            await provider.close_session(active_session)
+        return await provider.delete(account)
 
     async def open_browser(self, account: Account) -> BrowserSessionResult:
         provider = browser_session_provider_registry.get(account.platform)
-        return provider.open_browser(account)
+        return await provider.open_browser(account)
 
     async def open_url(self, account: Account, url: str) -> BrowserSessionResult:
         provider = browser_session_provider_registry.get(account.platform)
-        return provider.open_url(account, url)
+        return await provider.open_url(account, url)
 
     async def open_home(self, account: Account) -> BrowserSessionResult:
         provider = browser_session_provider_registry.get(account.platform)
-        return provider.open_home(account)
+        return await provider.open_home(account)
 
     async def restart_browser(self, account: Account) -> BrowserSessionResult:
         await self.logout(account)
