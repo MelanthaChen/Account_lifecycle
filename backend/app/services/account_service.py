@@ -87,7 +87,7 @@ class AccountService:
         account.last_profile_sync = datetime.now(UTC)
         await self.activity_service.record_success(
             activity,
-            {
+            metadata={
                 "reddit_username": profile.reddit_username,
                 "display_name": profile.display_name,
             },

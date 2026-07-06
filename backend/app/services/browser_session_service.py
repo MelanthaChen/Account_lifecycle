@@ -54,7 +54,7 @@ class BrowserSessionService:
         except Exception as exc:
             await self.activity_service.record_failure(activity, exc)
             raise
-        await self.activity_service.record_success(activity, {"session_status": result.session_status})
+        await self.activity_service.record_success(activity, metadata={"session_status": result.session_status})
         return await self._apply_result(account, result)
 
     async def validate(self, account_id: UUID) -> Account:
@@ -72,7 +72,7 @@ class BrowserSessionService:
         except Exception as exc:
             await self.activity_service.record_failure(activity, exc)
             raise
-        await self.activity_service.record_success(activity, {"session_status": result.session_status})
+        await self.activity_service.record_success(activity, metadata={"session_status": result.session_status})
         return await self._apply_result(account, result)
 
     async def refresh(self, account_id: UUID) -> Account:
@@ -87,7 +87,7 @@ class BrowserSessionService:
         except Exception as exc:
             await self.activity_service.record_failure(activity, exc)
             raise
-        await self.activity_service.record_success(activity, {"session_status": result.session_status})
+        await self.activity_service.record_success(activity, metadata={"session_status": result.session_status})
         return await self._apply_result(account, result)
 
     async def delete(self, account_id: UUID) -> Account:
@@ -102,7 +102,7 @@ class BrowserSessionService:
         except Exception as exc:
             await self.activity_service.record_failure(activity, exc)
             raise
-        await self.activity_service.record_success(activity, {"session_status": result.session_status})
+        await self.activity_service.record_success(activity, metadata={"session_status": result.session_status})
         return await self._apply_result(account, result)
 
     async def open_browser(self, account_id: UUID) -> Account:
