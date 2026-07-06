@@ -5,9 +5,10 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
-from app.models.enums import Platform
+from app.models.enums import ActivityType, Platform
 from app.repositories.account_repository import AccountRepository
 from app.schemas.account import AccountCreate, AccountUpdate
+from app.services.activity_service import ActivityService
 from app.services.reddit_sync_service import RedditSyncService
 
 
@@ -16,6 +17,7 @@ class AccountService:
         self.session = session
         self.accounts = AccountRepository(session)
         self.reddit_sync = RedditSyncService()
+        self.activity_service = ActivityService(session)
 
     async def list_accounts(self, search: str | None = None) -> list[Account]:
         return await self.accounts.list(search=search)
@@ -61,7 +63,17 @@ class AccountService:
         if account.platform != Platform.REDDIT:
             raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, "Profile sync is not implemented for this platform")
 
-        profile = await self.reddit_sync.sync_profile(account)
+        activity = await self.activity_service.record_start(
+            account=account,
+            activity_type=ActivityType.SYNC_PROFILE,
+            target_url=f"https://www.reddit.com/user/{account.username}/",
+            title="Sync Reddit profile",
+        )
+        try:
+            profile = await self.reddit_sync.sync_profile(account)
+        except Exception as exc:
+            await self.activity_service.record_failure(activity, exc)
+            raise
         account.display_name = profile.display_name
         account.reddit_username = profile.reddit_username
         account.avatar_url = profile.avatar_url
@@ -73,6 +85,13 @@ class AccountService:
         account.is_moderator = profile.is_moderator
         account.is_gold = profile.is_gold
         account.last_profile_sync = datetime.now(UTC)
+        await self.activity_service.record_success(
+            activity,
+            {
+                "reddit_username": profile.reddit_username,
+                "display_name": profile.display_name,
+            },
+        )
         await self.session.commit()
         await self.session.refresh(account)
         return account

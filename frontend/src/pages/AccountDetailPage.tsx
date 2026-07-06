@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 
+import { AccountActivityPanel } from "../components/accounts/AccountActivityPanel";
 import { AccountOverviewPanel } from "../components/accounts/AccountOverviewPanel";
 import { AccountSessionPanel } from "../components/accounts/AccountSessionPanel";
 import {
@@ -44,7 +45,7 @@ export function AccountDetailPage() {
 
       {activeTab === "overview" ? <AccountOverviewPanel account={account.data} /> : null}
       {activeTab === "session" ? <AccountSessionPanel account={account.data} /> : null}
-      {activeTab === "activity" ? <PlaceholderPanel title="Activity" /> : null}
+      {activeTab === "activity" ? <AccountActivityPanel account={account.data} /> : null}
       {activeTab === "publishing" ? <PlaceholderPanel title="Publishing" /> : null}
       {activeTab === "analytics" ? <PlaceholderPanel title="Analytics" /> : null}
       {activeTab === "settings" ? <PlaceholderPanel title="Settings" /> : null}
