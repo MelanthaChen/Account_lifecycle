@@ -7,6 +7,7 @@ import { AccountsPage } from "./pages/AccountsPage";
 import { AnalyticsPage } from "./pages/AnalyticsPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { UpvotePage } from "./pages/UpvotePage";
 
 export const router = createBrowserRouter([
   {
@@ -18,6 +19,7 @@ export const router = createBrowserRouter([
       { path: "accounts", element: <AccountsPage /> },
       { path: "accounts/:accountId", element: <AccountDetailPage /> },
       { path: "activity", element: <ActivityPage /> },
+      { path: "upvote", element: <UpvotePage /> },
       { path: "analytics", element: <AnalyticsPage /> },
       { path: "settings", element: <SettingsPage /> }
     ]

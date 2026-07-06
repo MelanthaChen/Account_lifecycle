@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   Settings,
   ShieldCheck,
+  ThumbsUp,
   Users
 } from "lucide-react";
 
@@ -14,6 +15,7 @@ const navigation = [
   { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
   { label: "Accounts", path: "/accounts", icon: Users },
   { label: "Activity", path: "/activity", icon: Activity },
+  { label: "Upvote", path: "/upvote", icon: ThumbsUp },
   { label: "Analytics", path: "/analytics", icon: BarChart3 },
   { label: "Settings", path: "/settings", icon: Settings }
 ];
@@ -22,6 +24,7 @@ const pageTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
   "/accounts": "Accounts",
   "/activity": "Activity",
+  "/upvote": "Upvote",
   "/analytics": "Analytics",
   "/settings": "Settings"
 };
