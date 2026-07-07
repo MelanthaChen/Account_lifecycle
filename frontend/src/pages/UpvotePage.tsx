@@ -68,6 +68,9 @@ export function UpvotePage() {
     selectedAccounts.forEach((account) => {
       appendLog(`Opening browser for ${account.nickname}...`);
       appendLog("Opening Reddit URL...");
+      appendLog("Finding Upvote button...");
+      appendLog("Clicking...");
+      appendLog("Verifying...");
     });
     createRequest.mutate(
       {
@@ -76,12 +79,22 @@ export function UpvotePage() {
       },
       {
         onSuccess: (response) => {
-          setLastStatus("success");
+          const allSucceeded = response.results.every((result) => result.opened && result.clicked);
+          setLastStatus(allSucceeded ? "success" : "error");
           response.results.forEach((result) => {
-            appendLog(result.opened ? `Success for ${result.account}.` : `Failed for ${result.account}.`, result.opened ? "success" : "error");
-            appendLog(`Closing browser for ${result.account}...`, "success");
+            if (result.opened && result.clicked && result.verified) {
+              appendLog(`Success for ${result.account}.`, "success");
+            } else if (result.opened && result.clicked) {
+              appendLog(`Clicked for ${result.account}, but verification was inconclusive.`, "default");
+            } else {
+              appendLog(`${formatReason(result.reason)} for ${result.account}.`, "error");
+            }
+            appendLog(`Closing browser for ${result.account}...`, result.opened ? "success" : "default");
           });
-          notify("Reddit URL opened for selected accounts.", "success");
+          notify(
+            allSucceeded ? "Upvote execution completed." : "Some accounts could not upvote.",
+            allSucceeded ? "success" : "error"
+          );
         },
         onError: () => {
           setLastStatus("error");
@@ -97,7 +110,7 @@ export function UpvotePage() {
       <div className="border-b border-border pb-5">
         <h1 className="text-2xl font-semibold">Upvote</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Open a Reddit URL with selected account sessions. No upvote action is executed.
+          Open a Reddit URL with selected account sessions and click one upvote control.
         </p>
       </div>
 
@@ -164,7 +177,7 @@ export function UpvotePage() {
               {createRequest.isPending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
               {createRequest.isPending ? "Submitting..." : "Start"}
             </Button>
-            <span className="text-xs text-muted-foreground">Opens the URL only. No Reddit button is clicked.</span>
+            <span className="text-xs text-muted-foreground">Runs selected accounts sequentially.</span>
           </div>
         </form>
 
@@ -224,7 +237,7 @@ function StatusCard({
     },
     success: {
       label: "Complete",
-      description: "The Reddit URL loaded successfully for the selected accounts.",
+      description: "The upvote action completed for the selected accounts.",
       icon: CheckCircle2,
       className: "border-emerald-200 bg-emerald-50 text-emerald-800"
     },
@@ -277,4 +290,16 @@ function formatSelectedAccounts(accounts: Account[]) {
     return "None selected";
   }
   return accounts.map((account) => account.nickname).join(", ");
+}
+
+function formatReason(reason: string | null) {
+  const labels: Record<string, string> = {
+    login_required: "Login required",
+    button_not_found: "Button not found",
+    click_failed: "Click failed",
+    verification_failed: "Verification failed",
+    navigation_failed: "Navigation failed",
+    account_not_found: "Account not found"
+  };
+  return reason ? (labels[reason] ?? reason) : "Execution failed";
 }

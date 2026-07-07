@@ -8,6 +8,9 @@ export interface UpvoteRequest {
 export interface UpvoteResult {
   account: string;
   opened: boolean;
+  clicked: boolean;
+  verified: boolean;
+  reason: string | null;
 }
 
 export interface UpvoteResponse {

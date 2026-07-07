@@ -26,6 +26,9 @@ class UpvoteRequest(BaseModel):
 class UpvoteResult(BaseModel):
     account: str
     opened: bool
+    clicked: bool
+    verified: bool
+    reason: str | None = None
 
 
 class UpvoteResponse(BaseModel):
@@ -53,4 +56,10 @@ async def create_upvote_request(
 
 
 def _serialize_result(result: UpvoteExecutionResult) -> UpvoteResult:
-    return UpvoteResult(account=result.account, opened=result.opened)
+    return UpvoteResult(
+        account=result.account,
+        opened=result.opened,
+        clicked=result.clicked,
+        verified=result.verified,
+        reason=result.reason,
+    )
