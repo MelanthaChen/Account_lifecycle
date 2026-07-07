@@ -36,7 +36,7 @@ export function CampaignDetailPage() {
   }, [workflow.data]);
 
   function addStep() {
-    setSteps((current) => [...current, { action_type: "UPVOTE", config: {} }]);
+    setSteps((current) => [...current, { action_type: "WAIT", config: { min_seconds: 5, max_seconds: 12 } }]);
   }
 
   function deleteStep(index: number) {
@@ -61,7 +61,7 @@ export function CampaignDetailPage() {
         itemIndex === index
           ? {
               action_type: actionType,
-              config: actionType === "OPEN_URL" ? { target_url: campaign.data?.target_url ?? "" } : {}
+              config: defaultConfig(actionType, campaign.data?.target_url ?? "")
             }
           : step
       )
@@ -72,6 +72,17 @@ export function CampaignDetailPage() {
     setSteps((current) =>
       current.map((step, itemIndex) =>
         itemIndex === index ? { ...step, config: { ...step.config, target_url: targetUrl } } : step
+      )
+    );
+  }
+
+  function updateStepNumber(index: number, key: string, value: string) {
+    const parsedValue = Number(value);
+    setSteps((current) =>
+      current.map((step, itemIndex) =>
+        itemIndex === index
+          ? { ...step, config: { ...step.config, [key]: Number.isNaN(parsedValue) ? 0 : parsedValue } }
+          : step
       )
     );
   }
@@ -149,18 +160,18 @@ export function CampaignDetailPage() {
                   className="flex h-10 w-full rounded-md border border-input bg-white px-3 text-sm outline-none"
                 >
                   <option value="OPEN_URL">OPEN_URL</option>
+                  <option value="WAIT">WAIT</option>
+                  <option value="SCROLL">SCROLL</option>
+                  <option value="OPEN_POST">OPEN_POST</option>
+                  <option value="BACK">BACK</option>
                   <option value="UPVOTE">UPVOTE</option>
                 </select>
-                {step.action_type === "OPEN_URL" ? (
-                  <Input
-                    value={String(step.config.target_url ?? campaign.data.target_url)}
-                    onChange={(event) => updateStepUrl(index, event.target.value)}
-                  />
-                ) : (
-                  <div className="flex h-10 items-center rounded-md border border-border bg-muted px-3 text-sm text-muted-foreground">
-                    Uses campaign target URL.
-                  </div>
-                )}
+                <StepConfigFields
+                  step={step}
+                  campaignTargetUrl={campaign.data.target_url}
+                  onUrlChange={(value) => updateStepUrl(index, value)}
+                  onNumberChange={(key, value) => updateStepNumber(index, key, value)}
+                />
               </div>
               <div className="flex flex-wrap gap-2">
                 <IconButton label="Move Up" disabled={index === 0} onClick={() => moveStep(index, -1)}>
@@ -221,7 +232,11 @@ function WorkflowRunPanel({ run }: { run: CampaignRunResponse }) {
                 <div key={`${accountResult.account}-${step.action_type}-${index}`} className="flex items-center justify-between gap-4 text-sm">
                   <span>{step.action_type}</span>
                   <span className={cn(step.success ? "text-emerald-700" : "text-red-700")}>
-                    {step.success ? "Success" : formatReason(step.reason ?? "failed")}
+                    {step.success
+                      ? step.detail
+                        ? `Success · ${step.detail}`
+                        : "Success"
+                      : formatReason(step.reason ?? "failed")}
                   </span>
                 </div>
               ))}
@@ -231,6 +246,96 @@ function WorkflowRunPanel({ run }: { run: CampaignRunResponse }) {
       </div>
     </section>
   );
+}
+
+function StepConfigFields({
+  step,
+  campaignTargetUrl,
+  onUrlChange,
+  onNumberChange
+}: {
+  step: WorkflowInputStep;
+  campaignTargetUrl: string;
+  onUrlChange: (value: string) => void;
+  onNumberChange: (key: string, value: string) => void;
+}) {
+  if (step.action_type === "OPEN_URL") {
+    return (
+      <Input
+        value={String(step.config.target_url ?? campaignTargetUrl)}
+        onChange={(event) => onUrlChange(event.target.value)}
+      />
+    );
+  }
+
+  if (step.action_type === "WAIT") {
+    return (
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="space-y-1">
+          <span className="text-xs font-medium text-muted-foreground">Minimum Seconds</span>
+          <Input
+            type="number"
+            min={0}
+            value={String(step.config.min_seconds ?? 5)}
+            onChange={(event) => onNumberChange("min_seconds", event.target.value)}
+          />
+        </label>
+        <label className="space-y-1">
+          <span className="text-xs font-medium text-muted-foreground">Maximum Seconds</span>
+          <Input
+            type="number"
+            min={0}
+            value={String(step.config.max_seconds ?? 12)}
+            onChange={(event) => onNumberChange("max_seconds", event.target.value)}
+          />
+        </label>
+      </div>
+    );
+  }
+
+  if (step.action_type === "SCROLL") {
+    return (
+      <label className="space-y-1">
+        <span className="text-xs font-medium text-muted-foreground">Scroll Count</span>
+        <Input
+          type="number"
+          min={1}
+          value={String(step.config.count ?? 3)}
+          onChange={(event) => onNumberChange("count", event.target.value)}
+        />
+      </label>
+    );
+  }
+
+  const labels: Record<WorkflowActionType, string> = {
+    OPEN_URL: "",
+    WAIT: "",
+    SCROLL: "",
+    OPEN_POST: "Randomly opens one visible post.",
+    BACK: "Returns to the previous page.",
+    UPVOTE: "Uses campaign target URL."
+  };
+  return (
+    <div className="flex h-10 items-center rounded-md border border-border bg-muted px-3 text-sm text-muted-foreground">
+      {labels[step.action_type]}
+    </div>
+  );
+}
+
+function defaultConfig(actionType: WorkflowActionType, targetUrl: string): Record<string, unknown> {
+  if (actionType === "OPEN_URL") {
+    return { target_url: targetUrl };
+  }
+  if (actionType === "WAIT") {
+    return { min_seconds: 5, max_seconds: 12 };
+  }
+  if (actionType === "SCROLL") {
+    return { count: 3 };
+  }
+  if (actionType === "OPEN_POST") {
+    return { strategy: "random" };
+  }
+  return {};
 }
 
 function StatePanel({ title, tone = "default" }: { title: string; tone?: "default" | "error" }) {
@@ -254,7 +359,9 @@ function formatReason(reason: string) {
     click_failed: "Click Failed",
     verification_failed: "Verification Failed",
     navigation_failed: "Navigation Failed",
-    account_not_found: "Account Not Found"
+    account_not_found: "Account Not Found",
+    post_not_found: "Post Not Found",
+    browser_unavailable: "Browser Unavailable"
   };
   return labels[reason] ?? reason;
 }

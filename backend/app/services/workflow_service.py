@@ -19,7 +19,7 @@ from app.schemas.workflow import (
     WorkflowStepResult,
     WorkflowWrite,
 )
-from app.services.open_url_service import OpenUrlService
+from app.services.behavior_service import BehaviorService, BehaviorSession
 from app.services.upvote_service import UpvoteService
 
 
@@ -29,7 +29,7 @@ class WorkflowService:
         self.accounts = AccountRepository(session)
         self.campaigns = CampaignRepository(session)
         self.workflows = WorkflowRepository(session)
-        self.open_urls = OpenUrlService()
+        self.behavior = BehaviorService()
         self.upvotes = UpvoteService(session)
 
     async def get_workflow(self, campaign_id: UUID) -> WorkflowRead:
@@ -69,7 +69,14 @@ class WorkflowService:
                 results.append(
                     WorkflowAccountResult(
                         account=str(account_id),
-                        steps=[WorkflowStepResult(action_type=step.action_type, success=False, reason="account_not_found") for step in steps],
+                        steps=[
+                            WorkflowStepResult(
+                                action_type=step.action_type,
+                                success=False,
+                                reason="account_not_found",
+                            )
+                            for step in steps
+                        ],
                     )
                 )
                 continue
@@ -87,23 +94,99 @@ class WorkflowService:
         steps: list[WorkflowStep],
     ) -> WorkflowAccountResult:
         step_results: list[WorkflowStepResult] = []
-        for step in steps:
-            result = await self._execute_step(campaign, account, step)
-            step_results.append(result)
-            if not result.success:
-                break
-        return WorkflowAccountResult(account=account.nickname, steps=step_results)
+        behavior_session: BehaviorSession | None = None
+        try:
+            for step in steps:
+                if self._uses_behavior_session(step.action_type) and behavior_session is None:
+                    behavior_session = await self.behavior.start(account)
+                if step.action_type == WorkflowActionType.UPVOTE and behavior_session is not None:
+                    await self.behavior.close(behavior_session)
+                    behavior_session = None
+
+                result = await self._execute_step(campaign, account, step, behavior_session)
+                step_results.append(result)
+                if not result.success:
+                    break
+            return WorkflowAccountResult(account=account.nickname, steps=step_results)
+        finally:
+            await self.behavior.close(behavior_session)
 
     async def _execute_step(
         self,
         campaign: Campaign,
         account: Account,
         step: WorkflowStep,
+        behavior_session: BehaviorSession | None,
     ) -> WorkflowStepResult:
         target_url = str(step.config.get("target_url") or campaign.target_url)
         if step.action_type == WorkflowActionType.OPEN_URL:
-            result = await self.open_urls.open_url(account, target_url)
-            return WorkflowStepResult(action_type=step.action_type, success=result.success, reason=result.reason)
+            if behavior_session is None:
+                return WorkflowStepResult(
+                    action_type=step.action_type,
+                    success=False,
+                    reason="browser_unavailable",
+                )
+            result = await self.behavior.open_url(behavior_session, target_url)
+            return WorkflowStepResult(
+                action_type=step.action_type,
+                success=result.success,
+                reason=result.reason,
+                detail=result.detail,
+            )
+
+        if step.action_type == WorkflowActionType.WAIT:
+            result = await self.behavior.wait(step.config)
+            return WorkflowStepResult(
+                action_type=step.action_type,
+                success=result.success,
+                reason=result.reason,
+                detail=result.detail,
+            )
+
+        if step.action_type == WorkflowActionType.SCROLL:
+            if behavior_session is None:
+                return WorkflowStepResult(
+                    action_type=step.action_type,
+                    success=False,
+                    reason="browser_unavailable",
+                )
+            result = await self.behavior.scroll(behavior_session, step.config)
+            return WorkflowStepResult(
+                action_type=step.action_type,
+                success=result.success,
+                reason=result.reason,
+                detail=result.detail,
+            )
+
+        if step.action_type == WorkflowActionType.OPEN_POST:
+            if behavior_session is None:
+                return WorkflowStepResult(
+                    action_type=step.action_type,
+                    success=False,
+                    reason="browser_unavailable",
+                )
+            result = await self.behavior.open_post(behavior_session)
+            return WorkflowStepResult(
+                action_type=step.action_type,
+                success=result.success,
+                reason=result.reason,
+                detail=result.detail,
+            )
+
+        if step.action_type == WorkflowActionType.BACK:
+            if behavior_session is None:
+                return WorkflowStepResult(
+                    action_type=step.action_type,
+                    success=False,
+                    reason="browser_unavailable",
+                )
+            result = await self.behavior.back(behavior_session)
+            return WorkflowStepResult(
+                action_type=step.action_type,
+                success=result.success,
+                reason=result.reason,
+                detail=result.detail,
+            )
 
         if step.action_type == WorkflowActionType.UPVOTE:
             results = await self.upvotes.open_target_for_accounts(
@@ -144,5 +227,14 @@ class WorkflowService:
     @staticmethod
     def _validate_steps(steps: list[WorkflowStepInput]) -> None:
         for step in steps:
-            if step.action_type not in {WorkflowActionType.OPEN_URL, WorkflowActionType.UPVOTE}:
+            if step.action_type not in set(WorkflowActionType):
                 raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Unsupported workflow action: {step.action_type}")
+
+    @staticmethod
+    def _uses_behavior_session(action_type: WorkflowActionType) -> bool:
+        return action_type in {
+            WorkflowActionType.OPEN_URL,
+            WorkflowActionType.SCROLL,
+            WorkflowActionType.OPEN_POST,
+            WorkflowActionType.BACK,
+        }

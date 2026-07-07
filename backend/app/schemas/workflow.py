@@ -37,6 +37,7 @@ class WorkflowStepResult(BaseModel):
     action_type: WorkflowActionType
     success: bool
     reason: str | None = None
+    detail: str | None = None
 
 
 class WorkflowAccountResult(BaseModel):

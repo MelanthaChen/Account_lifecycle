@@ -1,6 +1,6 @@
 export type CampaignStatus = "Draft" | "Ready" | "Running" | "Completed" | "Failed";
 export type CampaignActionType = "UPVOTE";
-export type WorkflowActionType = "OPEN_URL" | "UPVOTE";
+export type WorkflowActionType = "OPEN_URL" | "WAIT" | "SCROLL" | "OPEN_POST" | "BACK" | "UPVOTE";
 
 export interface Campaign {
   id: string;
@@ -28,6 +28,7 @@ export interface CampaignRunResult {
   action_type: WorkflowActionType;
   success: boolean;
   reason: string | null;
+  detail: string | null;
 }
 
 export interface WorkflowAccountResult {

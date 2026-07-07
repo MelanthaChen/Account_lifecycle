@@ -344,7 +344,11 @@ function RunResultPanel({ run }: { run: CampaignRunResponse }) {
                 <div key={step.action_type} className="flex items-center justify-between gap-4">
                   <span>{step.action_type}</span>
                   <span className={step.success ? "text-emerald-700" : "text-red-700"}>
-                    {step.success ? "Success" : formatReason(step.reason ?? "failed")}
+                    {step.success
+                      ? step.detail
+                        ? `Success · ${step.detail}`
+                        : "Success"
+                      : formatReason(step.reason ?? "failed")}
                   </span>
                 </div>
               ))}
@@ -377,7 +381,9 @@ function formatReason(reason: string) {
     click_failed: "Click Failed",
     verification_failed: "Verification Failed",
     navigation_failed: "Navigation Failed",
-    account_not_found: "Account Not Found"
+    account_not_found: "Account Not Found",
+    post_not_found: "Post Not Found",
+    browser_unavailable: "Browser Unavailable"
   };
   return labels[reason] ?? reason;
 }

@@ -51,4 +51,8 @@ class CampaignStatus(StrEnum):
 
 class WorkflowActionType(StrEnum):
     OPEN_URL = "OPEN_URL"
+    WAIT = "WAIT"
+    SCROLL = "SCROLL"
+    OPEN_POST = "OPEN_POST"
+    BACK = "BACK"
     UPVOTE = "UPVOTE"
