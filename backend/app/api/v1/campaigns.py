@@ -4,14 +4,20 @@ from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_session
-from app.schemas.campaign import CampaignCreate, CampaignRead, CampaignRunResponse
+from app.schemas.campaign import CampaignCreate, CampaignRead
+from app.schemas.workflow import WorkflowRead, WorkflowRunResponse, WorkflowWrite
 from app.services.campaign_service import CampaignService
+from app.services.workflow_service import WorkflowService
 
 router = APIRouter(prefix="/campaigns", tags=["campaigns"])
 
 
 def service(session: AsyncSession = Depends(get_session)) -> CampaignService:
     return CampaignService(session)
+
+
+def workflow_service(session: AsyncSession = Depends(get_session)) -> WorkflowService:
+    return WorkflowService(session)
 
 
 @router.get("", response_model=list[CampaignRead])
@@ -46,9 +52,43 @@ async def delete_campaign(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.post("/{campaign_id}/run", response_model=CampaignRunResponse)
+@router.post("/{campaign_id}/run", response_model=WorkflowRunResponse)
 async def run_campaign(
     campaign_id: UUID,
     campaign_service: CampaignService = Depends(service),
-) -> CampaignRunResponse:
+) -> WorkflowRunResponse:
     return await campaign_service.run_campaign(campaign_id)
+
+
+@router.get("/{campaign_id}/workflow", response_model=WorkflowRead)
+async def get_campaign_workflow(
+    campaign_id: UUID,
+    workflows: WorkflowService = Depends(workflow_service),
+) -> WorkflowRead:
+    return await workflows.get_workflow(campaign_id)
+
+
+@router.post("/{campaign_id}/workflow", response_model=WorkflowRead, status_code=status.HTTP_201_CREATED)
+async def create_campaign_workflow(
+    campaign_id: UUID,
+    payload: WorkflowWrite,
+    workflows: WorkflowService = Depends(workflow_service),
+) -> WorkflowRead:
+    return await workflows.create_workflow(campaign_id, payload)
+
+
+@router.put("/{campaign_id}/workflow", response_model=WorkflowRead)
+async def replace_campaign_workflow(
+    campaign_id: UUID,
+    payload: WorkflowWrite,
+    workflows: WorkflowService = Depends(workflow_service),
+) -> WorkflowRead:
+    return await workflows.replace_workflow(campaign_id, payload)
+
+
+@router.post("/{campaign_id}/workflow/run", response_model=WorkflowRunResponse)
+async def run_campaign_workflow(
+    campaign_id: UUID,
+    workflows: WorkflowService = Depends(workflow_service),
+) -> WorkflowRunResponse:
+    return await workflows.run_workflow(campaign_id)

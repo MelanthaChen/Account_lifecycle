@@ -1,11 +1,13 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, Text, UniqueConstraint, func
+from typing import Any
+
+from sqlalchemy import DateTime, Enum, ForeignKey, Integer, JSON, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
-from app.models.enums import CampaignActionType, CampaignStatus, Platform
+from app.models.enums import CampaignActionType, CampaignStatus, Platform, WorkflowActionType
 
 
 class Campaign(Base):
@@ -73,3 +75,39 @@ class CampaignAccount(Base):
         primary_key=True,
     )
     execution_order: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class WorkflowStep(Base):
+    __tablename__ = "workflow_steps"
+    __table_args__ = (
+        UniqueConstraint("campaign_id", "step_order", name="uq_workflow_steps_campaign_order"),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    campaign_id: Mapped[UUID] = mapped_column(
+        ForeignKey("campaigns.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    step_order: Mapped[int] = mapped_column(Integer, nullable=False)
+    action_type: Mapped[WorkflowActionType] = mapped_column(
+        Enum(
+            WorkflowActionType,
+            name="workflow_action_type",
+            values_callable=lambda enum: [item.value for item in enum],
+            validate_strings=True,
+        ),
+        nullable=False,
+    )
+    config: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )

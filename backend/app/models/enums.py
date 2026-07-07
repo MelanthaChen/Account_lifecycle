@@ -47,3 +47,8 @@ class CampaignStatus(StrEnum):
     RUNNING = "Running"
     COMPLETED = "Completed"
     FAILED = "Failed"
+
+
+class WorkflowActionType(StrEnum):
+    OPEN_URL = "OPEN_URL"
+    UPVOTE = "UPVOTE"

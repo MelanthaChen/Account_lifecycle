@@ -6,6 +6,7 @@ import { ActivityPage } from "./pages/ActivityPage";
 import { AccountsPage } from "./pages/AccountsPage";
 import { AnalyticsPage } from "./pages/AnalyticsPage";
 import { CampaignsPage } from "./pages/CampaignsPage";
+import { CampaignDetailPage } from "./pages/CampaignDetailPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { UpvotePage } from "./pages/UpvotePage";
@@ -22,6 +23,7 @@ export const router = createBrowserRouter([
       { path: "activity", element: <ActivityPage /> },
       { path: "upvote", element: <UpvotePage /> },
       { path: "campaigns", element: <CampaignsPage /> },
+      { path: "campaigns/:campaignId", element: <CampaignDetailPage /> },
       { path: "analytics", element: <AnalyticsPage /> },
       { path: "settings", element: <SettingsPage /> }
     ]

@@ -4,11 +4,13 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.campaign import Campaign
-from app.models.enums import CampaignActionType, CampaignStatus
+from app.models.enums import CampaignActionType, CampaignStatus, WorkflowActionType
 from app.repositories.account_repository import AccountRepository
 from app.repositories.campaign_repository import CampaignRepository
-from app.schemas.campaign import CampaignCreate, CampaignRead, CampaignRunResponse, CampaignRunResult
-from app.services.upvote_service import UpvoteService, UpvoteExecutionResult
+from app.repositories.workflow_repository import WorkflowRepository
+from app.schemas.campaign import CampaignCreate, CampaignRead
+from app.schemas.workflow import WorkflowRunResponse, WorkflowStepInput
+from app.services.workflow_service import WorkflowService
 
 
 class CampaignService:
@@ -16,7 +18,7 @@ class CampaignService:
         self.session = session
         self.campaigns = CampaignRepository(session)
         self.accounts = AccountRepository(session)
-        self.upvotes = UpvoteService(session)
+        self.workflows = WorkflowRepository(session)
 
     async def list_campaigns(self) -> list[CampaignRead]:
         campaigns = await self.campaigns.list()
@@ -40,6 +42,16 @@ class CampaignService:
         )
         await self.campaigns.create(campaign)
         await self.campaigns.replace_accounts(campaign.id, payload.account_ids)
+        await self.workflows.replace_steps(
+            campaign.id,
+            [
+                WorkflowStepInput(
+                    action_type=WorkflowActionType.OPEN_URL,
+                    config={"target_url": str(payload.target_url)},
+                ),
+                WorkflowStepInput(action_type=WorkflowActionType.UPVOTE, config={}),
+            ],
+        )
         await self.session.commit()
         await self.session.refresh(campaign)
         return await self._read(campaign)
@@ -49,31 +61,8 @@ class CampaignService:
         await self.campaigns.delete(campaign)
         await self.session.commit()
 
-    async def run_campaign(self, campaign_id: UUID) -> CampaignRunResponse:
-        campaign = await self._get_campaign_model(campaign_id)
-        account_ids = await self.campaigns.list_account_ids(campaign.id)
-        if campaign.action_type != CampaignActionType.UPVOTE:
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Only UPVOTE campaigns are supported")
-        if not account_ids:
-            raise HTTPException(status.HTTP_409_CONFLICT, "Campaign has no accounts")
-
-        campaign.status = CampaignStatus.RUNNING
-        await self.session.commit()
-        await self.session.refresh(campaign)
-
-        results = await self.upvotes.open_target_for_accounts(
-            account_ids=account_ids,
-            target_url=campaign.target_url,
-        )
-        campaign.status = CampaignStatus.COMPLETED if all(result.reason is None for result in results) else CampaignStatus.FAILED
-        await self.session.commit()
-        await self.session.refresh(campaign)
-
-        return CampaignRunResponse(
-            campaign=await self._read(campaign),
-            success=campaign.status == CampaignStatus.COMPLETED,
-            results=[self._serialize_result(result) for result in results],
-        )
+    async def run_campaign(self, campaign_id: UUID) -> WorkflowRunResponse:
+        return await WorkflowService(self.session).run_workflow(campaign_id)
 
     async def _get_campaign_model(self, campaign_id: UUID) -> Campaign:
         campaign = await self.campaigns.get(campaign_id)
@@ -99,14 +88,4 @@ class CampaignService:
             account_ids=account_ids,
             created_at=campaign.created_at,
             updated_at=campaign.updated_at,
-        )
-
-    @staticmethod
-    def _serialize_result(result: UpvoteExecutionResult) -> CampaignRunResult:
-        return CampaignRunResult(
-            account=result.account,
-            opened=result.opened,
-            clicked=result.clicked,
-            verified=result.verified,
-            reason=result.reason,
         )

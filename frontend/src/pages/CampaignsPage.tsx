@@ -1,5 +1,6 @@
 import { FormEvent, useMemo, useState } from "react";
-import { ClipboardList, Play, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { ClipboardList, Eye, Play, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Link } from "react-router-dom";
 
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -299,6 +300,13 @@ function CampaignCard({
             <Play size={16} />
             {isRunning ? "Running..." : "Run"}
           </Button>
+          <Link
+            to={`/campaigns/${campaign.id}`}
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-border bg-white px-3 text-sm font-medium transition hover:bg-muted"
+          >
+            <Eye size={16} />
+            Open
+          </Link>
           <Button type="button" variant="danger" onClick={onDelete} disabled={isDeleting}>
             <Trash2 size={16} />
             Delete
@@ -325,17 +333,22 @@ function RunResultPanel({ run }: { run: CampaignRunResponse }) {
     <section className="rounded-md border border-border bg-white p-5">
       <div className="mb-4">
         <h2 className="text-base font-semibold">Run Result</h2>
-        <p className="text-sm text-muted-foreground">
-          {run.campaign.name} · Status {run.campaign.status}
-        </p>
+        <p className="text-sm text-muted-foreground">Campaign {run.campaign_id}</p>
       </div>
       <div className="divide-y divide-border">
-        {run.results.map((result) => (
-          <div key={result.account} className="flex items-center justify-between gap-4 py-3 text-sm">
-            <span className="font-medium">{result.account}</span>
-            <span className={result.reason ? "text-red-700" : "text-emerald-700"}>
-              {result.reason ? formatReason(result.reason) : "Success"}
-            </span>
+        {run.results.map((accountResult) => (
+          <div key={accountResult.account} className="py-3 text-sm">
+            <div className="font-medium">{accountResult.account}</div>
+            <div className="mt-2 space-y-1">
+              {accountResult.steps.map((step) => (
+                <div key={step.action_type} className="flex items-center justify-between gap-4">
+                  <span>{step.action_type}</span>
+                  <span className={step.success ? "text-emerald-700" : "text-red-700"}>
+                    {step.success ? "Success" : formatReason(step.reason ?? "failed")}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         ))}
       </div>
