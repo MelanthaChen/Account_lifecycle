@@ -1,14 +1,18 @@
 import { api } from "./client";
 
 export interface UpvoteRequest {
-  account_id: string;
+  account_ids: string[];
   target_url: string;
 }
 
+export interface UpvoteResult {
+  account: string;
+  opened: boolean;
+}
+
 export interface UpvoteResponse {
-  status: "received";
-  target_url: string;
-  account_id: string;
+  success: boolean;
+  results: UpvoteResult[];
 }
 
 export async function createUpvoteRequest(input: UpvoteRequest): Promise<UpvoteResponse> {

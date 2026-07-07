@@ -20,12 +20,12 @@ export function UpvotePage() {
   const createRequest = useCreateUpvoteRequest();
   const { notify } = useToast();
   const [targetUrl, setTargetUrl] = useState("");
-  const [accountId, setAccountId] = useState("");
-  const [lastStatus, setLastStatus] = useState<"idle" | "received" | "error">("idle");
+  const [accountIds, setAccountIds] = useState<string[]>([]);
+  const [lastStatus, setLastStatus] = useState<"idle" | "running" | "success" | "error">("idle");
   const [logs, setLogs] = useState<LogEntry[]>([
     {
       id: 1,
-      message: "Waiting for an upvote request.",
+      message: "Waiting for an upvote execution.",
       tone: "default"
     }
   ]);
@@ -34,37 +34,59 @@ export function UpvotePage() {
     () => (accounts.data ?? []).filter((account) => account.is_active),
     [accounts.data]
   );
-  const selectedAccount = activeAccounts.find((account) => account.id === accountId) ?? null;
+  const selectedAccounts = activeAccounts.filter((account) => accountIds.includes(account.id));
+  const allSelected = activeAccounts.length > 0 && selectedAccounts.length === activeAccounts.length;
 
   function appendLog(message: string, tone: LogEntry["tone"] = "default") {
-    setLogs((current) => [{ id: Date.now(), message, tone }, ...current].slice(0, 20));
+    setLogs((current) => [{ id: Date.now() + Math.random(), message, tone }, ...current].slice(0, 40));
+  }
+
+  function toggleAllAccounts(checked: boolean) {
+    setAccountIds(checked ? activeAccounts.map((account) => account.id) : []);
+  }
+
+  function toggleAccount(accountId: string, checked: boolean) {
+    setAccountIds((current) => {
+      if (checked) {
+        return current.includes(accountId) ? current : [...current, accountId];
+      }
+      return current.filter((id) => id !== accountId);
+    });
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!accountId || !targetUrl.trim()) {
+    if (accountIds.length === 0 || !targetUrl.trim()) {
       setLastStatus("error");
-      appendLog("Target URL and account are required.", "error");
-      notify("Target URL and account are required.", "error");
+      appendLog("Target URL and at least one account are required.", "error");
+      notify("Target URL and at least one account are required.", "error");
       return;
     }
 
-    appendLog(`Submitting request for ${selectedAccount?.nickname ?? "selected account"}.`);
+    setLastStatus("running");
+    appendLog("Starting...");
+    selectedAccounts.forEach((account) => {
+      appendLog(`Opening browser for ${account.nickname}...`);
+      appendLog("Opening Reddit URL...");
+    });
     createRequest.mutate(
       {
-        account_id: accountId,
+        account_ids: accountIds,
         target_url: targetUrl.trim()
       },
       {
         onSuccess: (response) => {
-          setLastStatus("received");
-          appendLog(`API accepted ${response.target_url}.`, "success");
-          notify("Upvote request received.", "success");
+          setLastStatus("success");
+          response.results.forEach((result) => {
+            appendLog(result.opened ? `Success for ${result.account}.` : `Failed for ${result.account}.`, result.opened ? "success" : "error");
+            appendLog(`Closing browser for ${result.account}...`, "success");
+          });
+          notify("Reddit URL opened for selected accounts.", "success");
         },
         onError: () => {
           setLastStatus("error");
-          appendLog("API rejected the request. Check the URL and try again.", "error");
-          notify("Unable to submit upvote request.", "error");
+          appendLog("Execution failed. Check account sessions and the target URL.", "error");
+          notify("Unable to execute upvote preparation.", "error");
         }
       }
     );
@@ -75,7 +97,7 @@ export function UpvotePage() {
       <div className="border-b border-border pb-5">
         <h1 className="text-2xl font-semibold">Upvote</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Prepare an upvote request for future execution.
+          Open a Reddit URL with selected account sessions. No upvote action is executed.
         </p>
       </div>
 
@@ -95,29 +117,42 @@ export function UpvotePage() {
             />
           </div>
 
-          <div className="space-y-2">
-            <label htmlFor="account" className="text-sm font-medium">
-              Account
-            </label>
-            <select
-              id="account"
-              required
-              value={accountId}
-              onChange={(event) => setAccountId(event.target.value)}
-              className="flex h-10 w-full rounded-md border border-input bg-white px-3 text-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={accounts.isLoading}
-            >
-              <option value="">{accounts.isLoading ? "Loading accounts..." : "Select account"}</option>
-              {activeAccounts.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {formatAccountLabel(account)}
-                </option>
-              ))}
-            </select>
+          <div className="space-y-3">
+            <div className="text-sm font-medium">Accounts</div>
+            <div className="rounded-md border border-border bg-white">
+              <label className="flex cursor-pointer items-center gap-3 border-b border-border px-3 py-2 text-sm font-medium">
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  onChange={(event) => toggleAllAccounts(event.target.checked)}
+                  disabled={accounts.isLoading || activeAccounts.length === 0}
+                  className="h-4 w-4 rounded border-border"
+                />
+                All Accounts
+              </label>
+              <div className="max-h-64 overflow-y-auto">
+                {activeAccounts.map((account) => (
+                  <label
+                    key={account.id}
+                    className="flex cursor-pointer items-center gap-3 px-3 py-2 text-sm hover:bg-muted"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={accountIds.includes(account.id)}
+                      onChange={(event) => toggleAccount(account.id, event.target.checked)}
+                      className="h-4 w-4 rounded border-border"
+                    />
+                    <span className="min-w-0 truncate">{formatAccountLabel(account)}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
             {accounts.isError ? (
               <p className="text-xs text-red-600">Unable to load accounts.</p>
             ) : activeAccounts.length === 0 && !accounts.isLoading ? (
               <p className="text-xs text-muted-foreground">No active accounts are available.</p>
+            ) : accountIds.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Select at least one account.</p>
             ) : null}
           </div>
 
@@ -129,11 +164,11 @@ export function UpvotePage() {
               {createRequest.isPending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
               {createRequest.isPending ? "Submitting..." : "Start"}
             </Button>
-            <span className="text-xs text-muted-foreground">MVP contract only. No Reddit action is executed.</span>
+            <span className="text-xs text-muted-foreground">Opens the URL only. No Reddit button is clicked.</span>
           </div>
         </form>
 
-        <StatusCard status={lastStatus} account={selectedAccount} targetUrl={targetUrl} />
+        <StatusCard status={lastStatus} accounts={selectedAccounts} targetUrl={targetUrl} />
       </div>
 
       <section className="rounded-md border border-border bg-white">
@@ -167,23 +202,29 @@ export function UpvotePage() {
 
 function StatusCard({
   status,
-  account,
+  accounts,
   targetUrl
 }: {
-  status: "idle" | "received" | "error";
-  account: Account | null;
+  status: "idle" | "running" | "success" | "error";
+  accounts: Account[];
   targetUrl: string;
 }) {
   const statusConfig = {
     idle: {
       label: "Ready",
-      description: "Submit a target URL and account to test the API contract.",
+      description: "Submit a target URL and one or more accounts.",
       icon: ThumbsUp,
       className: "border-border bg-white text-foreground"
     },
-    received: {
-      label: "Received",
-      description: "The backend accepted the request and returned the expected response.",
+    running: {
+      label: "Running",
+      description: "Selected accounts are being processed sequentially.",
+      icon: Loader2,
+      className: "border-blue-200 bg-blue-50 text-blue-800"
+    },
+    success: {
+      label: "Complete",
+      description: "The Reddit URL loaded successfully for the selected accounts.",
       icon: CheckCircle2,
       className: "border-emerald-200 bg-emerald-50 text-emerald-800"
     },
@@ -208,7 +249,7 @@ function StatusCard({
         </div>
       </div>
       <div className="mt-5 space-y-3 text-sm">
-        <StatusRow label="Account" value={account ? formatAccountLabel(account) : "None selected"} />
+        <StatusRow label="Accounts" value={formatSelectedAccounts(accounts)} />
         <StatusRow label="Target" value={targetUrl.trim() || "No URL entered"} isUrl={Boolean(targetUrl.trim())} />
       </div>
     </aside>
@@ -229,4 +270,11 @@ function StatusRow({ label, value, isUrl = false }: { label: string; value: stri
 
 function formatAccountLabel(account: Account) {
   return `${account.nickname} (${account.platform}:${account.username})`;
+}
+
+function formatSelectedAccounts(accounts: Account[]) {
+  if (accounts.length === 0) {
+    return "None selected";
+  }
+  return accounts.map((account) => account.nickname).join(", ");
 }
