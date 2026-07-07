@@ -35,3 +35,15 @@ class ActivityType(StrEnum):
     VALIDATE_SESSION = "VALIDATE_SESSION"
     REFRESH_SESSION = "REFRESH_SESSION"
     DELETE_SESSION = "DELETE_SESSION"
+
+
+class CampaignActionType(StrEnum):
+    UPVOTE = "UPVOTE"
+
+
+class CampaignStatus(StrEnum):
+    DRAFT = "Draft"
+    READY = "Ready"
+    RUNNING = "Running"
+    COMPLETED = "Completed"
+    FAILED = "Failed"

@@ -2,6 +2,7 @@ import { NavLink, Outlet, useLocation } from "react-router-dom";
 import {
   Activity,
   BarChart3,
+  ClipboardList,
   LayoutDashboard,
   Settings,
   ShieldCheck,
@@ -16,6 +17,7 @@ const navigation = [
   { label: "Accounts", path: "/accounts", icon: Users },
   { label: "Activity", path: "/activity", icon: Activity },
   { label: "Upvote", path: "/upvote", icon: ThumbsUp },
+  { label: "Campaigns", path: "/campaigns", icon: ClipboardList },
   { label: "Analytics", path: "/analytics", icon: BarChart3 },
   { label: "Settings", path: "/settings", icon: Settings }
 ];
@@ -25,6 +27,7 @@ const pageTitles: Record<string, string> = {
   "/accounts": "Accounts",
   "/activity": "Activity",
   "/upvote": "Upvote",
+  "/campaigns": "Campaigns",
   "/analytics": "Analytics",
   "/settings": "Settings"
 };
