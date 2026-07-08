@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowDown, ArrowLeft, ArrowUp, Play, Plus, Save, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, Layers, Play, Plus, Save, Trash2 } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 
 import { Button } from "../components/ui/button";
@@ -10,19 +10,25 @@ import {
   useReplaceCampaignWorkflow,
   useRunCampaignWorkflow
 } from "../hooks/useCampaigns";
+import { useApplyBehaviorTemplate, useBehaviorTemplates } from "../hooks/useBehaviorTemplates";
 import { cn } from "../lib/utils";
 import { useToast } from "../store/useToast";
+import type { BehaviorTemplate } from "../types/behaviorTemplate";
 import type { CampaignRunResponse, WorkflowActionType, WorkflowInputStep } from "../types/campaign";
 
 export function CampaignDetailPage() {
   const { campaignId = "" } = useParams();
   const campaign = useCampaign(campaignId);
   const workflow = useCampaignWorkflow(campaignId);
+  const templates = useBehaviorTemplates();
   const replaceWorkflow = useReplaceCampaignWorkflow(campaignId);
+  const applyTemplate = useApplyBehaviorTemplate(campaignId);
   const runWorkflow = useRunCampaignWorkflow(campaignId);
   const { notify } = useToast();
   const [steps, setSteps] = useState<WorkflowInputStep[]>([]);
   const [lastRun, setLastRun] = useState<CampaignRunResponse | null>(null);
+  const [templatePanelOpen, setTemplatePanelOpen] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
 
   useEffect(() => {
     if (workflow.data) {
@@ -108,6 +114,26 @@ export function CampaignDetailPage() {
     });
   }
 
+  function applySelectedTemplate() {
+    if (!selectedTemplateId) {
+      notify("Choose a template first.", "error");
+      return;
+    }
+    applyTemplate.mutate(selectedTemplateId, {
+      onSuccess: (response) => {
+        setSteps(
+          response.steps.map((step) => ({
+            action_type: step.action_type,
+            config: step.config
+          }))
+        );
+        notify("Template applied.", "success");
+        setTemplatePanelOpen(false);
+      },
+      onError: () => notify("Unable to apply template.", "error")
+    });
+  }
+
   if (campaign.isLoading || workflow.isLoading) {
     return <StatePanel title="Loading campaign..." />;
   }
@@ -132,6 +158,10 @@ export function CampaignDetailPage() {
             <Plus size={16} />
             Add Step
           </Button>
+          <Button type="button" variant="secondary" onClick={() => setTemplatePanelOpen((value) => !value)}>
+            <Layers size={16} />
+            Apply Template
+          </Button>
           <Button type="button" variant="secondary" onClick={saveWorkflow} disabled={replaceWorkflow.isPending || steps.length === 0}>
             <Save size={16} />
             Save
@@ -142,6 +172,17 @@ export function CampaignDetailPage() {
           </Button>
         </div>
       </div>
+
+      {templatePanelOpen ? (
+        <TemplateChooser
+          templates={templates.data ?? []}
+          selectedTemplateId={selectedTemplateId}
+          isLoading={templates.isLoading}
+          isPending={applyTemplate.isPending}
+          onSelect={setSelectedTemplateId}
+          onApply={applySelectedTemplate}
+        />
+      ) : null}
 
       <section className="rounded-md border border-border bg-white">
         <div className="border-b border-border px-4 py-3">
@@ -191,6 +232,83 @@ export function CampaignDetailPage() {
 
       {lastRun ? <WorkflowRunPanel run={lastRun} /> : null}
     </div>
+  );
+}
+
+function TemplateChooser({
+  templates,
+  selectedTemplateId,
+  isLoading,
+  isPending,
+  onSelect,
+  onApply
+}: {
+  templates: BehaviorTemplate[];
+  selectedTemplateId: string;
+  isLoading: boolean;
+  isPending: boolean;
+  onSelect: (templateId: string) => void;
+  onApply: () => void;
+}) {
+  const selectedTemplate = templates.find((template) => template.id === selectedTemplateId) ?? templates[0] ?? null;
+
+  useEffect(() => {
+    if (!selectedTemplateId && templates[0]) {
+      onSelect(templates[0].id);
+    }
+  }, [onSelect, selectedTemplateId, templates]);
+
+  return (
+    <section className="grid gap-4 rounded-md border border-border bg-white p-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="space-y-3">
+        <h2 className="text-sm font-semibold">Choose Template</h2>
+        {isLoading ? (
+          <div className="text-sm text-muted-foreground">Loading templates...</div>
+        ) : (
+          <div className="grid gap-2">
+            {templates.map((template) => (
+              <button
+                key={template.id}
+                type="button"
+                onClick={() => onSelect(template.id)}
+                className={cn(
+                  "rounded-md border px-3 py-2 text-left text-sm transition hover:border-primary",
+                  selectedTemplate?.id === template.id ? "border-primary" : "border-border"
+                )}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-medium">{template.name}</span>
+                  {template.is_builtin ? <span className="text-xs text-blue-700">Built-in</span> : null}
+                </div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  {template.category} · {template.workflow_json.length} steps
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      <div className="space-y-4">
+        <h2 className="text-sm font-semibold">Preview</h2>
+        {selectedTemplate ? (
+          <div className="space-y-2">
+            {selectedTemplate.workflow_json.map((step, index) => (
+              <div key={`${step.action}-${index}`} className="flex items-center gap-3 rounded-md border border-border px-3 py-2 text-sm">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-muted text-xs font-semibold">
+                  {index + 1}
+                </span>
+                <span>{step.action}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-sm text-muted-foreground">No template selected.</div>
+        )}
+        <Button type="button" onClick={onApply} disabled={!selectedTemplate || isPending}>
+          {isPending ? "Applying..." : "Apply"}
+        </Button>
+      </div>
+    </section>
   );
 }
 

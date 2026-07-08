@@ -2,6 +2,7 @@ import { NavLink, Outlet, useLocation } from "react-router-dom";
 import {
   Activity,
   BarChart3,
+  BookOpen,
   ClipboardList,
   LayoutDashboard,
   Settings,
@@ -18,6 +19,7 @@ const navigation = [
   { label: "Activity", path: "/activity", icon: Activity },
   { label: "Upvote", path: "/upvote", icon: ThumbsUp },
   { label: "Campaigns", path: "/campaigns", icon: ClipboardList },
+  { label: "Behavior Library", path: "/behavior-library", icon: BookOpen },
   { label: "Analytics", path: "/analytics", icon: BarChart3 },
   { label: "Settings", path: "/settings", icon: Settings }
 ];
@@ -28,6 +30,7 @@ const pageTitles: Record<string, string> = {
   "/activity": "Activity",
   "/upvote": "Upvote",
   "/campaigns": "Campaigns",
+  "/behavior-library": "Behavior Library",
   "/analytics": "Analytics",
   "/settings": "Settings"
 };

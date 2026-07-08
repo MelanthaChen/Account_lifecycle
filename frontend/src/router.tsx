@@ -8,6 +8,7 @@ import { AnalyticsPage } from "./pages/AnalyticsPage";
 import { CampaignsPage } from "./pages/CampaignsPage";
 import { CampaignDetailPage } from "./pages/CampaignDetailPage";
 import { DashboardPage } from "./pages/DashboardPage";
+import { BehaviorLibraryPage } from "./pages/BehaviorLibraryPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { UpvotePage } from "./pages/UpvotePage";
 
@@ -24,6 +25,7 @@ export const router = createBrowserRouter([
       { path: "upvote", element: <UpvotePage /> },
       { path: "campaigns", element: <CampaignsPage /> },
       { path: "campaigns/:campaignId", element: <CampaignDetailPage /> },
+      { path: "behavior-library", element: <BehaviorLibraryPage /> },
       { path: "analytics", element: <AnalyticsPage /> },
       { path: "settings", element: <SettingsPage /> }
     ]
