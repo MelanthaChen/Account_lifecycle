@@ -25,6 +25,8 @@ export interface CampaignInput {
 }
 
 export interface CampaignRunResult {
+  id?: string;
+  workflow_step_id?: string;
   action_type: WorkflowActionType;
   success: boolean;
   reason: string | null;

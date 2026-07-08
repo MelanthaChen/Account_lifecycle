@@ -10,7 +10,7 @@ import { useCampaigns, useCreateCampaign, useDeleteCampaign, useRunCampaign } fr
 import { cn } from "../lib/utils";
 import { useToast } from "../store/useToast";
 import type { Account } from "../types/account";
-import type { Campaign, CampaignRunResponse, CampaignStatus } from "../types/campaign";
+import type { Campaign, CampaignRunResponse, CampaignRunResult, CampaignStatus } from "../types/campaign";
 
 export function CampaignsPage() {
   const campaigns = useCampaigns();
@@ -340,8 +340,8 @@ function RunResultPanel({ run }: { run: CampaignRunResponse }) {
           <div key={accountResult.account} className="py-3 text-sm">
             <div className="font-medium">{accountResult.account}</div>
             <div className="mt-2 space-y-1">
-              {accountResult.steps.map((step) => (
-                <div key={step.action_type} className="flex items-center justify-between gap-4">
+              {accountResult.steps.map((step, index) => (
+                <div key={runStepKey(step, index)} className="flex items-center justify-between gap-4">
                   <span>{step.action_type}</span>
                   <span className={step.success ? "text-emerald-700" : "text-red-700"}>
                     {step.success
@@ -358,6 +358,10 @@ function RunResultPanel({ run }: { run: CampaignRunResponse }) {
       </div>
     </section>
   );
+}
+
+function runStepKey(step: CampaignRunResult, index: number) {
+  return step.id ?? step.workflow_step_id ?? `${step.action_type}-${index}`;
 }
 
 function StatePanel({ title, tone = "default" }: { title: string; tone?: "default" | "error" }) {
