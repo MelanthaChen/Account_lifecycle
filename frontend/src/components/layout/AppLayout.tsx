@@ -6,6 +6,7 @@ import {
   ClipboardList,
   HeartPulse,
   LayoutDashboard,
+  Lightbulb,
   Settings,
   ShieldCheck,
   ThumbsUp,
@@ -22,6 +23,7 @@ const navigation = [
   { label: "Campaigns", path: "/campaigns", icon: ClipboardList },
   { label: "Behavior Library", path: "/behavior-library", icon: BookOpen },
   { label: "Health", path: "/health", icon: HeartPulse },
+  { label: "Recommendations", path: "/recommendations", icon: Lightbulb },
   { label: "Analytics", path: "/analytics", icon: BarChart3 },
   { label: "Settings", path: "/settings", icon: Settings }
 ];
@@ -34,6 +36,7 @@ const pageTitles: Record<string, string> = {
   "/campaigns": "Campaigns",
   "/behavior-library": "Behavior Library",
   "/health": "Health",
+  "/recommendations": "Recommendations",
   "/analytics": "Analytics",
   "/settings": "Settings"
 };

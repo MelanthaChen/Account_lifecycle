@@ -1,10 +1,19 @@
-import { RefreshCw } from "lucide-react";
+import { Lightbulb, RefreshCw, X } from "lucide-react";
 
 import { Button } from "../ui/button";
 import { HealthStatusBadge, RiskBadge } from "../health/HealthBadges";
+import {
+  RecommendationPriorityBadge,
+  RecommendationStatusBadge
+} from "../recommendations/RecommendationBadges";
 import { StatusBadge } from "../ui/badge";
 import { useSyncAccountProfile } from "../../hooks/useAccounts";
 import { useAccountHealth, useEvaluateAccountHealth } from "../../hooks/useHealth";
+import {
+  useAccountRecommendations,
+  useDismissRecommendation,
+  useEvaluateAccountRecommendations
+} from "../../hooks/useRecommendations";
 import { useToast } from "../../store/useToast";
 import type { Account } from "../../types/account";
 
@@ -12,7 +21,13 @@ export function AccountOverviewPanel({ account }: { account: Account }) {
   const syncProfile = useSyncAccountProfile(account.id);
   const health = useAccountHealth(account.id);
   const evaluateHealth = useEvaluateAccountHealth(account.id);
+  const recommendations = useAccountRecommendations(account.id);
+  const evaluateRecommendations = useEvaluateAccountRecommendations(account.id);
+  const dismissRecommendation = useDismissRecommendation(account.id);
   const { notify } = useToast();
+  const activeRecommendations = (recommendations.data ?? []).filter(
+    (recommendation) => recommendation.status === "ACTIVE"
+  );
 
   return (
     <section className="space-y-4">
@@ -87,6 +102,67 @@ export function AccountOverviewPanel({ account }: { account: Account }) {
             <HealthSignal label="Session" value={health.data.signals.session_valid ? "Valid" : "Invalid"} />
             <HealthSignal label="Profile" value={health.data.signals.profile_synced ? "Synced" : "Not synced"} />
             <HealthSignal label="Risk" value={health.data.risk_level} />
+          </div>
+        ) : null}
+      </div>
+
+      <div className="rounded-md border border-border bg-white p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <div className="text-xs font-medium uppercase text-muted-foreground">Recommendations</div>
+            <div className="mt-2 text-sm text-muted-foreground">
+              {recommendations.isLoading
+                ? "Loading recommendations..."
+                : activeRecommendations.length
+                  ? `${activeRecommendations.length} active recommendation${activeRecommendations.length === 1 ? "" : "s"}`
+                  : "No active recommendations"}
+            </div>
+          </div>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={evaluateRecommendations.isPending}
+            onClick={() =>
+              evaluateRecommendations.mutate(undefined, {
+                onSuccess: () => notify("Recommendations evaluated.", "success"),
+                onError: () => notify("Unable to evaluate recommendations.", "error")
+              })
+            }
+          >
+            <RefreshCw size={16} className={evaluateRecommendations.isPending ? "animate-spin" : ""} />
+            {evaluateRecommendations.isPending ? "Evaluating..." : "Evaluate Recommendations"}
+          </Button>
+        </div>
+        {activeRecommendations.length ? (
+          <div className="mt-4 space-y-2">
+            {activeRecommendations.slice(0, 3).map((recommendation) => (
+              <div key={recommendation.id} className="rounded-md bg-muted px-3 py-3">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Lightbulb size={15} className="text-muted-foreground" />
+                      <span className="font-medium">{recommendation.title}</span>
+                      <RecommendationPriorityBadge priority={recommendation.priority} />
+                      <RecommendationStatusBadge status={recommendation.status} />
+                    </div>
+                    <p className="mt-1 text-sm text-muted-foreground">{recommendation.description}</p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    disabled={dismissRecommendation.isPending}
+                    onClick={() =>
+                      dismissRecommendation.mutate(recommendation.id, {
+                        onSuccess: () => notify("Recommendation dismissed.", "success"),
+                        onError: () => notify("Unable to dismiss recommendation.", "error")
+                      })
+                    }
+                  >
+                    <X size={16} />
+                  </Button>
+                </div>
+              </div>
+            ))}
           </div>
         ) : null}
       </div>

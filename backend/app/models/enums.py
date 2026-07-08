@@ -68,3 +68,25 @@ class RiskLevel(StrEnum):
     LOW = "LOW"
     MEDIUM = "MEDIUM"
     HIGH = "HIGH"
+
+
+class RecommendationStatus(StrEnum):
+    ACTIVE = "ACTIVE"
+    DISMISSED = "DISMISSED"
+    COMPLETED = "COMPLETED"
+
+
+class RecommendationPriority(StrEnum):
+    HIGH = "HIGH"
+    MEDIUM = "MEDIUM"
+    LOW = "LOW"
+
+
+class RecommendationType(StrEnum):
+    RUN_WARM_UP = "RUN_WARM_UP"
+    RUN_QUICK_UPVOTE = "RUN_QUICK_UPVOTE"
+    RUN_CASUAL_READER = "RUN_CASUAL_READER"
+    RUN_DEEP_READER = "RUN_DEEP_READER"
+    SYNC_PROFILE = "SYNC_PROFILE"
+    REFRESH_SESSION = "REFRESH_SESSION"
+    NO_ACTION = "NO_ACTION"
