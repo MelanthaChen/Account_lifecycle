@@ -7,12 +7,15 @@ import { StatusChart } from "../components/dashboard/StatusChart";
 import { SummaryCard } from "../components/dashboard/SummaryCard";
 import { useActivities } from "../hooks/useActivities";
 import { useAccounts } from "../hooks/useAccounts";
+import { useHealth } from "../hooks/useHealth";
 
 export function DashboardPage() {
   const accounts = useAccounts();
   const activities = useActivities({ limit: 10 });
+  const health = useHealth();
   const accountList = accounts.data ?? [];
-  const healthyAccounts = accountList.filter((account) => account.status === "active").length;
+  const healthList = health.data ?? [];
+  const healthyAccounts = healthList.filter((record) => record.health_status === "HEALTHY").length;
   const totalKarma = accountList.reduce(
     (total, account) => total + (account.karma_post ?? 0) + (account.karma_comment ?? 0),
     0

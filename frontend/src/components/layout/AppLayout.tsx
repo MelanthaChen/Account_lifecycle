@@ -4,6 +4,7 @@ import {
   BarChart3,
   BookOpen,
   ClipboardList,
+  HeartPulse,
   LayoutDashboard,
   Settings,
   ShieldCheck,
@@ -20,6 +21,7 @@ const navigation = [
   { label: "Upvote", path: "/upvote", icon: ThumbsUp },
   { label: "Campaigns", path: "/campaigns", icon: ClipboardList },
   { label: "Behavior Library", path: "/behavior-library", icon: BookOpen },
+  { label: "Health", path: "/health", icon: HeartPulse },
   { label: "Analytics", path: "/analytics", icon: BarChart3 },
   { label: "Settings", path: "/settings", icon: Settings }
 ];
@@ -31,6 +33,7 @@ const pageTitles: Record<string, string> = {
   "/upvote": "Upvote",
   "/campaigns": "Campaigns",
   "/behavior-library": "Behavior Library",
+  "/health": "Health",
   "/analytics": "Analytics",
   "/settings": "Settings"
 };

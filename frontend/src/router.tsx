@@ -9,6 +9,7 @@ import { CampaignsPage } from "./pages/CampaignsPage";
 import { CampaignDetailPage } from "./pages/CampaignDetailPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { BehaviorLibraryPage } from "./pages/BehaviorLibraryPage";
+import { HealthPage } from "./pages/HealthPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { UpvotePage } from "./pages/UpvotePage";
 
@@ -26,6 +27,7 @@ export const router = createBrowserRouter([
       { path: "campaigns", element: <CampaignsPage /> },
       { path: "campaigns/:campaignId", element: <CampaignDetailPage /> },
       { path: "behavior-library", element: <BehaviorLibraryPage /> },
+      { path: "health", element: <HealthPage /> },
       { path: "analytics", element: <AnalyticsPage /> },
       { path: "settings", element: <SettingsPage /> }
     ]

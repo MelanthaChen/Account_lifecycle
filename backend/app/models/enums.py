@@ -56,3 +56,15 @@ class WorkflowActionType(StrEnum):
     OPEN_POST = "OPEN_POST"
     BACK = "BACK"
     UPVOTE = "UPVOTE"
+
+
+class HealthStatus(StrEnum):
+    HEALTHY = "HEALTHY"
+    WARNING = "WARNING"
+    CRITICAL = "CRITICAL"
+
+
+class RiskLevel(StrEnum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"

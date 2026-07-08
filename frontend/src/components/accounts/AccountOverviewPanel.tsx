@@ -1,13 +1,17 @@
 import { RefreshCw } from "lucide-react";
 
 import { Button } from "../ui/button";
+import { HealthStatusBadge, RiskBadge } from "../health/HealthBadges";
 import { StatusBadge } from "../ui/badge";
 import { useSyncAccountProfile } from "../../hooks/useAccounts";
+import { useAccountHealth, useEvaluateAccountHealth } from "../../hooks/useHealth";
 import { useToast } from "../../store/useToast";
 import type { Account } from "../../types/account";
 
 export function AccountOverviewPanel({ account }: { account: Account }) {
   const syncProfile = useSyncAccountProfile(account.id);
+  const health = useAccountHealth(account.id);
+  const evaluateHealth = useEvaluateAccountHealth(account.id);
   const { notify } = useToast();
 
   return (
@@ -47,6 +51,46 @@ export function AccountOverviewPanel({ account }: { account: Account }) {
         </Button>
       </div>
 
+      <div className="rounded-md border border-border bg-white p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <div className="text-xs font-medium uppercase text-muted-foreground">Health</div>
+            {health.data ? (
+              <div className="mt-2 flex flex-wrap items-center gap-3">
+                <div className="text-3xl font-semibold">{health.data.health_score}</div>
+                <HealthStatusBadge status={health.data.health_status} />
+                <RiskBadge risk={health.data.risk_level} />
+              </div>
+            ) : (
+              <div className="mt-2 text-sm text-muted-foreground">
+                {health.isLoading ? "Loading health..." : "Not evaluated"}
+              </div>
+            )}
+          </div>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={evaluateHealth.isPending}
+            onClick={() =>
+              evaluateHealth.mutate(undefined, {
+                onSuccess: () => notify("Health evaluated.", "success"),
+                onError: () => notify("Unable to evaluate health.", "error")
+              })
+            }
+          >
+            <RefreshCw size={16} className={evaluateHealth.isPending ? "animate-spin" : ""} />
+            {evaluateHealth.isPending ? "Evaluating..." : "Evaluate Health"}
+          </Button>
+        </div>
+        {health.data ? (
+          <div className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
+            <HealthSignal label="Session" value={health.data.signals.session_valid ? "Valid" : "Invalid"} />
+            <HealthSignal label="Profile" value={health.data.signals.profile_synced ? "Synced" : "Not synced"} />
+            <HealthSignal label="Risk" value={health.data.risk_level} />
+          </div>
+        ) : null}
+      </div>
+
       <div className="grid gap-4 lg:grid-cols-2">
         <DetailItem label="Nickname" value={account.nickname} />
         <DetailItem label="Platform" value={account.platform} className="capitalize" />
@@ -69,6 +113,15 @@ export function AccountOverviewPanel({ account }: { account: Account }) {
         </div>
       </div>
     </section>
+  );
+}
+
+function HealthSignal({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md bg-muted px-3 py-2">
+      <div className="text-xs font-medium uppercase text-muted-foreground">{label}</div>
+      <div className="mt-1 font-medium">{value}</div>
+    </div>
   );
 }
 
