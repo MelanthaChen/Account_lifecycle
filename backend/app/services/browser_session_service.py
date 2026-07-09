@@ -13,6 +13,8 @@ from app.services.browser_sessions.base import BrowserSessionResult
 
 
 class BrowserSessionService:
+    """Applies browser session provider results to account records and activity logs."""
+
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
         self.accounts = AccountRepository(session)
@@ -20,6 +22,7 @@ class BrowserSessionService:
         self.activity_service = ActivityService(session)
 
     async def create(self, account_id: UUID) -> Account:
+        """Start a manual login session for an account."""
         account = await self._get_account(account_id)
         activity = await self.activity_service.record_start(
             account=account,
@@ -39,6 +42,7 @@ class BrowserSessionService:
         return await self._apply_result(account, result)
 
     async def finish(self, account_id: UUID) -> Account:
+        """Persist storage state from the active manual login session."""
         account = await self._get_account(account_id)
         activity = await self.activity_service.record_start(
             account=account,
@@ -58,6 +62,7 @@ class BrowserSessionService:
         return await self._apply_result(account, result)
 
     async def validate(self, account_id: UUID) -> Account:
+        """Validate the account's persisted browser session."""
         account = await self._get_account(account_id)
         activity = await self.activity_service.record_start(
             account=account,
@@ -76,6 +81,7 @@ class BrowserSessionService:
         return await self._apply_result(account, result)
 
     async def refresh(self, account_id: UUID) -> Account:
+        """Refresh session status using the provider implementation."""
         account = await self._get_account(account_id)
         activity = await self.activity_service.record_start(
             account=account,
@@ -91,6 +97,7 @@ class BrowserSessionService:
         return await self._apply_result(account, result)
 
     async def delete(self, account_id: UUID) -> Account:
+        """Delete the account's persisted browser session files."""
         account = await self._get_account(account_id)
         activity = await self.activity_service.record_start(
             account=account,
@@ -106,6 +113,7 @@ class BrowserSessionService:
         return await self._apply_result(account, result)
 
     async def open_browser(self, account_id: UUID) -> Account:
+        """Open the account browser profile without navigating to provider home."""
         account = await self._get_account(account_id)
         activity = await self.activity_service.record_start(
             account=account,
@@ -121,6 +129,7 @@ class BrowserSessionService:
         return await self._apply_result(account, result)
 
     async def open_home(self, account_id: UUID) -> Account:
+        """Open the account provider home page in its persistent browser profile."""
         account = await self._get_account(account_id)
         activity = await self.activity_service.record_start(
             account=account,

@@ -24,10 +24,13 @@ class BehaviorResult:
 
 
 class BehaviorService:
+    """Executes human-like workflow actions inside a provider browser session."""
+
     def __init__(self) -> None:
         self.browser_manager = browser_manager
 
     async def start(self, account: Account) -> BehaviorSession:
+        """Open a persistent browser context for behavior workflow steps."""
         active_session = await self.browser_manager.open_persistent_context(
             account,
             headless=not account.launch_visible_browser,
@@ -37,11 +40,13 @@ class BehaviorService:
         return BehaviorSession(account=account, active_session=active_session, page=page)
 
     async def close(self, session: BehaviorSession | None) -> None:
+        """Close an active behavior session if one exists."""
         if session is None:
             return
         await self.browser_manager.close_session(session.account, session.active_session)
 
     async def open_url(self, session: BehaviorSession, target_url: str) -> BehaviorResult:
+        """Navigate the active browser page to a target URL."""
         try:
             await session.page.goto(target_url, wait_until="domcontentloaded", timeout=60_000)
             await self._wait_for_networkidle(session.page)
@@ -50,6 +55,7 @@ class BehaviorService:
         return BehaviorResult(success=True)
 
     async def wait(self, config: dict[str, Any]) -> BehaviorResult:
+        """Pause for a random duration configured by min_seconds and max_seconds."""
         min_seconds = float(config.get("min_seconds", 5))
         max_seconds = float(config.get("max_seconds", 12))
         if max_seconds < min_seconds:
@@ -59,6 +65,7 @@ class BehaviorService:
         return BehaviorResult(success=True, detail=f"{duration:.1f} sec")
 
     async def scroll(self, session: BehaviorSession, config: dict[str, Any]) -> BehaviorResult:
+        """Perform random scroll operations on the active page."""
         count = int(config.get("count", 3))
         count = max(1, count)
         for _ in range(count):
@@ -69,6 +76,7 @@ class BehaviorService:
         return BehaviorResult(success=True, detail=f"{count} operations")
 
     async def open_post(self, session: BehaviorSession) -> BehaviorResult:
+        """Open one visible non-promoted Reddit post from the current page."""
         links = await session.page.locator('a[href*="/comments/"]').evaluate_all(
             """(elements) => {
                 const seen = new Set();
@@ -117,6 +125,7 @@ class BehaviorService:
         return BehaviorResult(success=True, detail=f"Opened: {title[:120]}")
 
     async def back(self, session: BehaviorSession) -> BehaviorResult:
+        """Navigate the active page back once."""
         try:
             await session.page.go_back(wait_until="domcontentloaded", timeout=60_000)
             await self._wait_for_networkidle(session.page)

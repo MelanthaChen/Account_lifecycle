@@ -13,21 +13,26 @@ from app.services.workflow_service import WorkflowService
 
 
 class BehaviorTemplateService:
+    """Manages reusable workflow step templates and applies them to campaigns."""
+
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
         self.templates = BehaviorTemplateRepository(session)
         self.workflows = WorkflowService(session)
 
     async def list_templates(self) -> list[BehaviorTemplate]:
+        """Return behavior templates with built-ins first."""
         return await self.templates.list()
 
     async def get_template(self, template_id: UUID) -> BehaviorTemplate:
+        """Return one behavior template or raise 404 when missing."""
         template = await self.templates.get(template_id)
         if template is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Behavior template not found")
         return template
 
     async def create_template(self, payload: BehaviorTemplateCreate) -> BehaviorTemplate:
+        """Validate and create a custom behavior template."""
         steps = self._template_to_steps(payload.workflow_json)
         template = BehaviorTemplate(
             name=payload.name,
@@ -43,6 +48,7 @@ class BehaviorTemplateService:
         return template
 
     async def delete_template(self, template_id: UUID) -> None:
+        """Delete a custom template; built-in templates are read-only."""
         template = await self.get_template(template_id)
         if template.is_builtin:
             raise HTTPException(status.HTTP_409_CONFLICT, "Built-in templates are read-only")
@@ -50,6 +56,7 @@ class BehaviorTemplateService:
         await self.session.commit()
 
     async def apply_template(self, campaign_id: UUID, template_id: UUID) -> WorkflowRead:
+        """Replace a campaign workflow with steps generated from a template."""
         template = await self.get_template(template_id)
         steps = self._template_to_steps(template.workflow_json)
         return await self.workflows.replace_workflow(campaign_id, WorkflowWrite(steps=steps))

@@ -22,7 +22,10 @@ class RedditProfileData:
 
 
 class RedditSyncService:
+    """Scrapes Reddit profile attributes using an account's persistent browser profile."""
+
     async def sync_profile(self, account: Account) -> RedditProfileData:
+        """Open the account profile page and extract available profile fields."""
         active_session = await browser_manager.open_persistent_context(
             account,
             headless=not account.launch_visible_browser,

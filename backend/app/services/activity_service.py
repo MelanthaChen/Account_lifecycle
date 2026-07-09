@@ -13,6 +13,8 @@ from app.repositories.activity_repository import ActivityRepository
 
 
 class ActivityService:
+    """Records and retrieves account operation audit events."""
+
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
         self.activities = ActivityRepository(session)
@@ -27,6 +29,7 @@ class ActivityService:
         activity_type: ActivityType | None = None,
         status: ActivityStatus | None = None,
     ) -> list[Activity]:
+        """Return activity records with optional account, type, and status filters."""
         return await self.activities.list(
             account_id=account_id,
             limit=limit,
@@ -36,17 +39,20 @@ class ActivityService:
         )
 
     async def get_activity(self, activity_id: UUID) -> Activity:
+        """Return one activity record or raise 404 when it does not exist."""
         activity = await self.activities.get(activity_id)
         if activity is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Activity not found")
         return activity
 
     async def delete_activity(self, activity_id: UUID) -> None:
+        """Delete one activity record."""
         activity = await self.get_activity(activity_id)
         await self.activities.delete(activity)
         await self.session.commit()
 
     async def create_test_activity(self, account_id: UUID | None = None) -> Activity:
+        """Create a synthetic browse activity for UI verification."""
         account = await self._get_account_for_activity(account_id)
         return await self.record(
             account=account,
@@ -66,6 +72,7 @@ class ActivityService:
         title: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> Activity:
+        """Create a RUNNING activity record at the beginning of an operation."""
         return await self.record(
             account=account,
             activity_type=activity_type,
@@ -82,6 +89,7 @@ class ActivityService:
         *,
         metadata: dict[str, Any] | None = None,
     ) -> Activity:
+        """Mark a RUNNING activity as SUCCESS and calculate duration."""
         activity.status = ActivityStatus.SUCCESS
         activity.finished_at = datetime.now(UTC)
         activity.duration_ms = self._duration_ms(activity)
@@ -98,6 +106,7 @@ class ActivityService:
         *,
         metadata: dict[str, Any] | None = None,
     ) -> Activity:
+        """Mark a RUNNING activity as FAILED and attach the error message."""
         activity.status = ActivityStatus.FAILED
         activity.finished_at = datetime.now(UTC)
         activity.duration_ms = self._duration_ms(activity)
@@ -122,6 +131,7 @@ class ActivityService:
         started_at: datetime | None = None,
         finished_at: datetime | None = None,
     ) -> Activity:
+        """Create an activity record with an explicit status."""
         started_at = started_at or datetime.now(UTC)
         if status in {ActivityStatus.SUCCESS, ActivityStatus.FAILED, ActivityStatus.CANCELLED}:
             finished_at = finished_at or datetime.now(UTC)

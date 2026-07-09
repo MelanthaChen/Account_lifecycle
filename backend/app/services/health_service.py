@@ -15,15 +15,19 @@ from app.repositories.health_repository import HealthRepository
 
 
 class HealthService:
+    """Calculates rule-based account health from existing account and activity data."""
+
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
         self.accounts = AccountRepository(session)
         self.health = HealthRepository(session)
 
     async def list_health(self) -> list[AccountHealth]:
+        """Return all stored account health records."""
         return await self.health.list()
 
     async def get_health(self, account_id: UUID) -> AccountHealth:
+        """Return account health, evaluating the account if no record exists yet."""
         record = await self.health.get_by_account(account_id)
         if record is None:
             account = await self._get_account(account_id)
@@ -31,16 +35,19 @@ class HealthService:
         return record
 
     async def evaluate_account(self, account_id: UUID) -> AccountHealth:
+        """Evaluate and persist health for one account."""
         account = await self._get_account(account_id)
         return await self.evaluate(account)
 
     async def evaluate_all(self) -> list[AccountHealth]:
+        """Evaluate and persist health for every account."""
         records: list[AccountHealth] = []
         for account in await self.accounts.list():
             records.append(await self.evaluate(account))
         return records
 
     async def evaluate(self, account: Account) -> AccountHealth:
+        """Compute health signals, score, status, and risk for an account."""
         signals = await self._signals(account)
         score = self._score(signals)
         now = datetime.now(UTC)

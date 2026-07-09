@@ -14,6 +14,8 @@ from app.services.workflow_service import WorkflowService
 
 
 class CampaignService:
+    """Creates, lists, deletes, and runs campaign orchestration records."""
+
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
         self.campaigns = CampaignRepository(session)
@@ -21,13 +23,16 @@ class CampaignService:
         self.workflows = WorkflowRepository(session)
 
     async def list_campaigns(self) -> list[CampaignRead]:
+        """Return campaigns with their ordered account assignments."""
         campaigns = await self.campaigns.list()
         return [await self._read(campaign) for campaign in campaigns]
 
     async def get_campaign(self, campaign_id: UUID) -> CampaignRead:
+        """Return one campaign with account assignments."""
         return await self._read(await self._get_campaign_model(campaign_id))
 
     async def create_campaign(self, payload: CampaignCreate) -> CampaignRead:
+        """Create an UPVOTE campaign and its default OPEN_URL plus UPVOTE workflow."""
         await self._validate_accounts(payload.account_ids)
         if payload.action_type != CampaignActionType.UPVOTE:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "Only UPVOTE campaigns are supported")
@@ -57,11 +62,13 @@ class CampaignService:
         return await self._read(campaign)
 
     async def delete_campaign(self, campaign_id: UUID) -> None:
+        """Delete a campaign and cascade related account and workflow rows."""
         campaign = await self._get_campaign_model(campaign_id)
         await self.campaigns.delete(campaign)
         await self.session.commit()
 
     async def run_campaign(self, campaign_id: UUID) -> WorkflowRunResponse:
+        """Run a campaign through the WorkflowService."""
         return await WorkflowService(self.session).run_workflow(campaign_id)
 
     async def _get_campaign_model(self, campaign_id: UUID) -> Campaign:

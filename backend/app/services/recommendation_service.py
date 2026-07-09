@@ -30,6 +30,8 @@ class RecommendationCandidate:
 
 
 class RecommendationService:
+    """Generates read-only rule-based recommendations from health and template data."""
+
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
         self.accounts = AccountService(session)
@@ -38,23 +40,28 @@ class RecommendationService:
         self.templates = BehaviorTemplateRepository(session)
 
     async def list_recommendations(self) -> list[AccountRecommendation]:
+        """Return all recommendation records."""
         return await self.recommendations.list()
 
     async def list_for_account(self, account_id: UUID) -> list[AccountRecommendation]:
+        """Return recommendation records for one account."""
         await self.accounts.get_account(account_id)
         return await self.recommendations.list_for_account(account_id)
 
     async def evaluate_account(self, account_id: UUID) -> list[AccountRecommendation]:
+        """Evaluate recommendations for one account."""
         account = await self.accounts.get_account(account_id)
         return await self.evaluate(account)
 
     async def evaluate_all(self) -> list[AccountRecommendation]:
+        """Evaluate recommendations for every account."""
         results: list[AccountRecommendation] = []
         for account in await self.accounts.list_accounts():
             results.extend(await self.evaluate(account))
         return results
 
     async def evaluate(self, account: Account) -> list[AccountRecommendation]:
+        """Refresh active recommendations for an account while preserving dismissed rows."""
         health = await self.health.evaluate(account)
         dismissed_types = await self.recommendations.dismissed_types_for_account(account.id)
         await self.recommendations.delete_active_for_account(account.id)
@@ -83,6 +90,7 @@ class RecommendationService:
         return await self.recommendations.list_for_account(account.id)
 
     async def dismiss(self, recommendation_id: UUID) -> AccountRecommendation:
+        """Mark a recommendation as dismissed."""
         recommendation = await self.recommendations.get(recommendation_id)
         if recommendation is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Recommendation not found")

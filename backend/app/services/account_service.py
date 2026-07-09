@@ -13,6 +13,8 @@ from app.services.reddit_sync_service import RedditSyncService
 
 
 class AccountService:
+    """Coordinates account CRUD and Reddit profile synchronization."""
+
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
         self.accounts = AccountRepository(session)
@@ -20,15 +22,18 @@ class AccountService:
         self.activity_service = ActivityService(session)
 
     async def list_accounts(self, search: str | None = None) -> list[Account]:
+        """Return managed accounts, optionally filtered by nickname or username."""
         return await self.accounts.list(search=search)
 
     async def get_account(self, account_id: UUID) -> Account:
+        """Return one account or raise 404 when it does not exist."""
         account = await self.accounts.get(account_id)
         if account is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Account not found")
         return account
 
     async def create_account(self, payload: AccountCreate) -> Account:
+        """Create a unique managed account for a platform and username."""
         existing = await self.accounts.get_by_platform_username(payload.platform, payload.username)
         if existing is not None:
             raise HTTPException(status.HTTP_409_CONFLICT, "Account username is already managed")
@@ -39,6 +44,7 @@ class AccountService:
         return account
 
     async def update_account(self, account_id: UUID, payload: AccountUpdate) -> Account:
+        """Apply partial account updates while preserving platform/username uniqueness."""
         account = await self.get_account(account_id)
         values = payload.model_dump(exclude_unset=True)
         platform = values.get("platform", account.platform)
@@ -54,11 +60,13 @@ class AccountService:
         return account
 
     async def delete_account(self, account_id: UUID) -> None:
+        """Delete an account record and cascade dependent database rows."""
         account = await self.get_account(account_id)
         await self.accounts.delete(account)
         await self.session.commit()
 
     async def sync_profile(self, account_id: UUID) -> Account:
+        """Scrape the Reddit profile through the stored browser profile and persist discovered fields."""
         account = await self.get_account(account_id)
         if account.platform != Platform.REDDIT:
             raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, "Profile sync is not implemented for this platform")

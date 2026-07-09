@@ -27,6 +27,8 @@ class UpvoteExecutionResult:
 
 
 class UpvoteService:
+    """Executes sequential Reddit upvote attempts through existing persistent sessions."""
+
     def __init__(self, session: AsyncSession) -> None:
         self.accounts = AccountRepository(session)
         self.browser_manager = browser_manager
@@ -37,6 +39,7 @@ class UpvoteService:
         account_ids: list[UUID],
         target_url: str,
     ) -> list[UpvoteExecutionResult]:
+        """Run an upvote attempt for each selected account sequentially."""
         results: list[UpvoteExecutionResult] = []
         for account_id in account_ids:
             account = await self.accounts.get(account_id)

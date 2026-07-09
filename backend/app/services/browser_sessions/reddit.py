@@ -25,6 +25,8 @@ class ActiveBrowserSession:
 
 
 class RedditSessionProvider:
+    """Reddit-specific browser session provider using Playwright persistent contexts."""
+
     platform = "reddit"
     home_url = "https://www.reddit.com/"
     login_url = "https://www.reddit.com/login/"
@@ -34,46 +36,59 @@ class RedditSessionProvider:
         self.storage_root = Path(storage_root)
 
     def get_storage_directory(self, account: Account) -> Path:
+        """Return the account-owned storage directory."""
         if account.storage_directory:
             return self._resolve_storage_path(Path(account.storage_directory))
         return self.storage_root / self.platform / self._account_directory_name(account)
 
     def get_profile_directory(self, account: Account) -> Path:
+        """Return the persistent Chromium profile directory."""
         if account.browser_profile_path:
             return self._resolve_storage_path(Path(account.browser_profile_path))
         return self.get_storage_directory(account) / "profile"
 
     def get_state_path(self, account: Account) -> Path:
+        """Return the Playwright storage state path for an account."""
         return self.get_storage_directory(account) / "storage_state.json"
 
     async def create_session(self, account: Account) -> BrowserSessionResult:
+        """Launch Reddit login and keep the browser context alive for manual login."""
         return await self._create_session(account)
 
     async def validate(self, account: Account) -> BrowserSessionResult:
+        """Validate whether Reddit authentication cookies are present."""
         return await self._validate(account)
 
     async def refresh(self, account: Account) -> BrowserSessionResult:
+        """Refresh session state by validating the current profile."""
         return await self.validate(account)
 
     async def delete(self, account: Account) -> BrowserSessionResult:
+        """Delete the account storage directory."""
         return await self._delete(account)
 
     async def close_session(self, active_session: object) -> None:
+        """Close a Reddit Playwright context and stop Playwright."""
         await self._close_session(active_session)
 
     async def open_persistent_context(self, account: Account, *, headless: bool) -> object:
+        """Open the Reddit account's persistent Chromium profile."""
         return await self._open_persistent_context(account, headless=headless)
 
     async def logout(self, account: Account) -> BrowserSessionResult:
+        """Clear Reddit cookies and remove storage state."""
         return await self._logout(account)
 
     async def open_browser(self, account: Account) -> BrowserSessionResult:
+        """Open a blank Reddit profile browser window."""
         return await self.open_url(account, "about:blank")
 
     async def open_url(self, account: Account, url: str) -> BrowserSessionResult:
+        """Open a URL in the Reddit account's persistent browser profile."""
         return await self._open_url(account, url)
 
     async def open_home(self, account: Account) -> BrowserSessionResult:
+        """Open Reddit home in the account's persistent browser profile."""
         return await self.open_url(account, self.home_url)
 
     async def _create_session(self, account: Account) -> BrowserSessionResult:
@@ -95,6 +110,7 @@ class RedditSessionProvider:
         )
 
     async def finish_session(self, account: Account, active_session: object | None = None) -> BrowserSessionResult:
+        """Persist storage state from the active manual login browser context."""
         return await self._finish_session(account, active_session)
 
     async def _finish_session(self, account: Account, active_session: object | None = None) -> BrowserSessionResult:
@@ -211,6 +227,7 @@ class RedditSessionProvider:
         return self._result(account, session_status=account.session_status)
 
     def ensure_storage_directories(self, account: Account) -> Path:
+        """Create the account-owned storage directory layout."""
         storage_directory = self.get_storage_directory(account)
         for child in ["profile", "screenshots", "downloads", "logs", "exports"]:
             (storage_directory / child).mkdir(parents=True, exist_ok=True)

@@ -14,10 +14,13 @@ class OpenUrlResult:
 
 
 class OpenUrlService:
+    """Opens a URL in an account's persistent browser context."""
+
     def __init__(self) -> None:
         self.browser_manager = browser_manager
 
     async def open_url(self, account: Account, target_url: str) -> OpenUrlResult:
+        """Navigate an account browser to a target URL and report navigation success."""
         active_session = await self.browser_manager.open_persistent_context(
             account,
             headless=not account.launch_visible_browser,

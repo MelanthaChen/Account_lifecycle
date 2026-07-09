@@ -24,6 +24,8 @@ from app.services.upvote_service import UpvoteService
 
 
 class WorkflowService:
+    """Stores and runs ordered workflow steps for campaigns."""
+
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
         self.accounts = AccountRepository(session)
@@ -33,14 +35,17 @@ class WorkflowService:
         self.upvotes = UpvoteService(session)
 
     async def get_workflow(self, campaign_id: UUID) -> WorkflowRead:
+        """Return the workflow steps for one campaign."""
         await self._get_campaign(campaign_id)
         steps = await self.workflows.list_steps(campaign_id)
         return WorkflowRead(campaign_id=campaign_id, steps=steps)
 
     async def create_workflow(self, campaign_id: UUID, payload: WorkflowWrite) -> WorkflowRead:
+        """Create workflow steps for a campaign by replacing existing steps."""
         return await self.replace_workflow(campaign_id, payload)
 
     async def replace_workflow(self, campaign_id: UUID, payload: WorkflowWrite) -> WorkflowRead:
+        """Replace all workflow steps for a campaign."""
         await self._get_campaign(campaign_id)
         self._validate_steps(payload.steps)
         steps = await self.workflows.replace_steps(campaign_id, payload.steps)
@@ -50,6 +55,7 @@ class WorkflowService:
         return WorkflowRead(campaign_id=campaign_id, steps=steps)
 
     async def run_workflow(self, campaign_id: UUID) -> WorkflowRunResponse:
+        """Execute campaign workflow steps sequentially for each assigned account."""
         campaign = await self._get_campaign(campaign_id)
         account_ids = await self.campaigns.list_account_ids(campaign.id)
         steps = await self.workflows.list_steps(campaign.id)
