@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.campaign import Campaign
 from app.models.enums import CampaignActionType, CampaignStatus, WorkflowActionType
+from app.providers.manager import provider_manager
 from app.repositories.account_repository import AccountRepository
 from app.repositories.campaign_repository import CampaignRepository
 from app.repositories.workflow_repository import WorkflowRepository
@@ -34,8 +35,11 @@ class CampaignService:
     async def create_campaign(self, payload: CampaignCreate) -> CampaignRead:
         """Create an UPVOTE campaign and its default OPEN_URL plus UPVOTE workflow."""
         await self._validate_accounts(payload.account_ids)
+        provider = provider_manager.get_provider(payload.platform)
         if payload.action_type != CampaignActionType.UPVOTE:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "Only UPVOTE campaigns are supported")
+        if WorkflowActionType.UPVOTE not in provider.supported_actions():
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "UPVOTE is not supported for this platform")
 
         campaign = Campaign(
             name=payload.name,

@@ -7,6 +7,7 @@ import re
 import shutil
 
 from app.models.account import Account
+from app.models.enums import Platform
 from app.services.browser_sessions.base import BrowserSessionResult
 
 
@@ -27,6 +28,7 @@ class ActiveBrowserSession:
 class RedditSessionProvider:
     """Reddit-specific browser session provider using Playwright persistent contexts."""
 
+    platform_name = Platform.REDDIT
     platform = "reddit"
     home_url = "https://www.reddit.com/"
     login_url = "https://www.reddit.com/login/"

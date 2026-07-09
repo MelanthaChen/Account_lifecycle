@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.account import Account
 from app.models.campaign import Campaign, WorkflowStep
 from app.models.enums import CampaignActionType, CampaignStatus, WorkflowActionType
+from app.providers.manager import provider_manager
 from app.repositories.account_repository import AccountRepository
 from app.repositories.campaign_repository import CampaignRepository
 from app.repositories.workflow_repository import WorkflowRepository
@@ -46,8 +47,8 @@ class WorkflowService:
 
     async def replace_workflow(self, campaign_id: UUID, payload: WorkflowWrite) -> WorkflowRead:
         """Replace all workflow steps for a campaign."""
-        await self._get_campaign(campaign_id)
-        self._validate_steps(payload.steps)
+        campaign = await self._get_campaign(campaign_id)
+        self._validate_steps(campaign, payload.steps)
         steps = await self.workflows.replace_steps(campaign_id, payload.steps)
         await self.session.commit()
         for step in steps:
@@ -231,9 +232,11 @@ class WorkflowService:
         return campaign
 
     @staticmethod
-    def _validate_steps(steps: list[WorkflowStepInput]) -> None:
+    def _validate_steps(campaign: Campaign, steps: list[WorkflowStepInput]) -> None:
+        provider = provider_manager.get_provider(campaign.platform)
+        supported_actions = provider.supported_actions()
         for step in steps:
-            if step.action_type not in set(WorkflowActionType):
+            if step.action_type not in supported_actions:
                 raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Unsupported workflow action: {step.action_type}")
 
     @staticmethod

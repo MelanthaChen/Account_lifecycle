@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
 from app.models.enums import ActivityType
+from app.providers.manager import provider_manager
 from app.repositories.account_repository import AccountRepository
 from app.services.activity_service import ActivityService
 from app.services.browser_manager import browser_manager
@@ -24,10 +25,11 @@ class BrowserSessionService:
     async def create(self, account_id: UUID) -> Account:
         """Start a manual login session for an account."""
         account = await self._get_account(account_id)
+        provider = provider_manager.get_provider(account.platform)
         activity = await self.activity_service.record_start(
             account=account,
             activity_type=ActivityType.LOGIN,
-            target_url="https://www.reddit.com/login/",
+            target_url=provider.login_url,
             title="Create browser session",
         )
         try:
@@ -44,10 +46,11 @@ class BrowserSessionService:
     async def finish(self, account_id: UUID) -> Account:
         """Persist storage state from the active manual login session."""
         account = await self._get_account(account_id)
+        provider = provider_manager.get_provider(account.platform)
         activity = await self.activity_service.record_start(
             account=account,
             activity_type=ActivityType.LOGIN,
-            target_url="https://www.reddit.com/login/",
+            target_url=provider.login_url,
             title="Finish browser session",
         )
         try:
@@ -131,10 +134,11 @@ class BrowserSessionService:
     async def open_home(self, account_id: UUID) -> Account:
         """Open the account provider home page in its persistent browser profile."""
         account = await self._get_account(account_id)
+        provider = provider_manager.get_provider(account.platform)
         activity = await self.activity_service.record_start(
             account=account,
             activity_type=ActivityType.OPEN_HOME,
-            target_url="https://www.reddit.com/",
+            target_url=provider.home_url,
             title="Open provider home",
         )
         try:

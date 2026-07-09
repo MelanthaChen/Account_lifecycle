@@ -5,20 +5,19 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
-from app.models.enums import ActivityType, Platform
+from app.models.enums import ActivityType
+from app.providers.manager import provider_manager
 from app.repositories.account_repository import AccountRepository
 from app.schemas.account import AccountCreate, AccountUpdate
 from app.services.activity_service import ActivityService
-from app.services.reddit_sync_service import RedditSyncService
 
 
 class AccountService:
-    """Coordinates account CRUD and Reddit profile synchronization."""
+    """Coordinates account CRUD and provider-backed profile synchronization."""
 
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
         self.accounts = AccountRepository(session)
-        self.reddit_sync = RedditSyncService()
         self.activity_service = ActivityService(session)
 
     async def list_accounts(self, search: str | None = None) -> list[Account]:
@@ -66,24 +65,23 @@ class AccountService:
         await self.session.commit()
 
     async def sync_profile(self, account_id: UUID) -> Account:
-        """Scrape the Reddit profile through the stored browser profile and persist discovered fields."""
+        """Scrape the provider profile through the stored browser profile and persist fields."""
         account = await self.get_account(account_id)
-        if account.platform != Platform.REDDIT:
-            raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, "Profile sync is not implemented for this platform")
+        provider = provider_manager.get_provider(account.platform)
 
         activity = await self.activity_service.record_start(
             account=account,
             activity_type=ActivityType.SYNC_PROFILE,
-            target_url=f"https://www.reddit.com/user/{account.username}/",
-            title="Sync Reddit profile",
+            target_url=f"{provider.home_url.rstrip('/')}/user/{account.username}/",
+            title=f"Sync {provider.display_name} profile",
         )
         try:
-            profile = await self.reddit_sync.sync_profile(account)
+            profile = await provider.sync_profile(account)
         except Exception as exc:
             await self.activity_service.record_failure(activity, exc)
             raise
         account.display_name = profile.display_name
-        account.reddit_username = profile.reddit_username
+        account.reddit_username = profile.provider_username
         account.avatar_url = profile.avatar_url
         account.karma_post = profile.karma_post
         account.karma_comment = profile.karma_comment
@@ -96,7 +94,7 @@ class AccountService:
         await self.activity_service.record_success(
             activity,
             metadata={
-                "reddit_username": profile.reddit_username,
+                "provider_username": profile.provider_username,
                 "display_name": profile.display_name,
             },
         )

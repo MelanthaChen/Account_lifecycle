@@ -6,14 +6,10 @@ import random
 from typing import Any
 
 from app.models.account import Account
-from app.services.browser_manager import browser_manager
+from app.models.enums import WorkflowActionType
+from app.providers.manager import provider_manager
 
-
-@dataclass
-class BehaviorSession:
-    account: Account
-    active_session: Any
-    page: Any
+BehaviorSession = Any
 
 
 @dataclass
@@ -24,35 +20,23 @@ class BehaviorResult:
 
 
 class BehaviorService:
-    """Executes human-like workflow actions inside a provider browser session."""
-
-    def __init__(self) -> None:
-        self.browser_manager = browser_manager
+    """Delegates behavior workflow actions to account providers."""
 
     async def start(self, account: Account) -> BehaviorSession:
-        """Open a persistent browser context for behavior workflow steps."""
-        active_session = await self.browser_manager.open_persistent_context(
-            account,
-            headless=not account.launch_visible_browser,
-        )
-        context = active_session.context
-        page = await context.new_page()
-        return BehaviorSession(account=account, active_session=active_session, page=page)
+        """Open a provider-owned persistent browser context for workflow steps."""
+        provider = provider_manager.get_provider(account.platform)
+        return await provider.start_behavior_session(account)
 
     async def close(self, session: BehaviorSession | None) -> None:
-        """Close an active behavior session if one exists."""
+        """Close an active provider behavior session if one exists."""
         if session is None:
             return
-        await self.browser_manager.close_session(session.account, session.active_session)
+        provider = provider_manager.get_provider(session.account.platform)
+        await provider.close_behavior_session(session)
 
     async def open_url(self, session: BehaviorSession, target_url: str) -> BehaviorResult:
-        """Navigate the active browser page to a target URL."""
-        try:
-            await session.page.goto(target_url, wait_until="domcontentloaded", timeout=60_000)
-            await self._wait_for_networkidle(session.page)
-        except Exception:
-            return BehaviorResult(success=False, reason="navigation_failed")
-        return BehaviorResult(success=True)
+        """Navigate the active provider page to a target URL."""
+        return await self._execute(session, WorkflowActionType.OPEN_URL, target_url=target_url)
 
     async def wait(self, config: dict[str, Any]) -> BehaviorResult:
         """Pause for a random duration configured by min_seconds and max_seconds."""
@@ -65,77 +49,35 @@ class BehaviorService:
         return BehaviorResult(success=True, detail=f"{duration:.1f} sec")
 
     async def scroll(self, session: BehaviorSession, config: dict[str, Any]) -> BehaviorResult:
-        """Perform random scroll operations on the active page."""
-        count = int(config.get("count", 3))
-        count = max(1, count)
-        for _ in range(count):
-            distance = random.randint(300, 900)
-            wait_ms = random.randint(500, 2_000)
-            await session.page.mouse.wheel(0, distance)
-            await session.page.wait_for_timeout(wait_ms)
-        return BehaviorResult(success=True, detail=f"{count} operations")
+        """Perform provider-defined scroll behavior."""
+        return await self._execute(session, WorkflowActionType.SCROLL, config=config)
 
     async def open_post(self, session: BehaviorSession) -> BehaviorResult:
-        """Open one visible non-promoted Reddit post from the current page."""
-        links = await session.page.locator('a[href*="/comments/"]').evaluate_all(
-            """(elements) => {
-                const seen = new Set();
-                return elements
-                    .filter((element) => {
-                        const rect = element.getBoundingClientRect();
-                        const href = element.href || "";
-                        const text = element.innerText || element.getAttribute("aria-label") || "";
-                        const container = element.closest("article, shreddit-post, div");
-                        const blob = [
-                            href,
-                            text,
-                            container?.innerText || "",
-                            container?.getAttribute("aria-label") || "",
-                            container?.className?.toString() || ""
-                        ].join(" ").toLowerCase();
-                        return rect.width > 0 &&
-                            rect.height > 0 &&
-                            rect.bottom > 0 &&
-                            rect.top < window.innerHeight &&
-                            href.includes("/comments/") &&
-                            !blob.includes("promoted") &&
-                            !blob.includes("advertise") &&
-                            !blob.includes("ad ");
-                    })
-                    .map((element) => ({
-                        href: element.href,
-                        title: (element.innerText || element.getAttribute("aria-label") || element.href).trim()
-                    }))
-                    .filter((item) => {
-                        if (seen.has(item.href)) return false;
-                        seen.add(item.href);
-                        return true;
-                    });
-            }"""
-        )
-        if not links:
-            return BehaviorResult(success=False, reason="post_not_found")
-        choice = random.choice(links)
-        try:
-            await session.page.goto(choice["href"], wait_until="domcontentloaded", timeout=60_000)
-            await self._wait_for_networkidle(session.page)
-        except Exception:
-            return BehaviorResult(success=False, reason="navigation_failed")
-        title = choice.get("title") or choice["href"]
-        return BehaviorResult(success=True, detail=f"Opened: {title[:120]}")
+        """Open one provider-defined visible post/content item."""
+        return await self._execute(session, WorkflowActionType.OPEN_POST)
 
     async def back(self, session: BehaviorSession) -> BehaviorResult:
-        """Navigate the active page back once."""
-        try:
-            await session.page.go_back(wait_until="domcontentloaded", timeout=60_000)
-            await self._wait_for_networkidle(session.page)
-        except Exception:
-            return BehaviorResult(success=False, reason="navigation_failed")
-        return BehaviorResult(success=True)
+        """Navigate the active provider page back once."""
+        return await self._execute(session, WorkflowActionType.BACK)
 
-    @staticmethod
-    async def _wait_for_networkidle(page: Any) -> None:
-        try:
-            await page.wait_for_load_state("networkidle", timeout=15_000)
-        except Exception:
-            pass
+    async def _execute(
+        self,
+        session: BehaviorSession,
+        action_type: WorkflowActionType,
+        *,
+        target_url: str | None = None,
+        config: dict[str, Any] | None = None,
+    ) -> BehaviorResult:
+        provider = provider_manager.get_provider(session.account.platform)
+        result = await provider.execute_action(
+            session.account,
+            action_type,
+            target_url=target_url,
+            config=config,
+            session=session,
+        )
+        return BehaviorResult(
+            success=result.success,
+            reason=result.reason,
+            detail=result.detail,
+        )

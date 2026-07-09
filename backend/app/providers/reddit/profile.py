@@ -4,13 +4,14 @@ from dataclasses import dataclass
 import re
 
 from app.models.account import Account
-from app.services.browser_manager import browser_manager
+from app.providers.base import ProviderProfileData
+from app.providers.reddit.session import RedditSessionProvider
 
 
 @dataclass(frozen=True)
-class RedditProfileData:
+class RedditProfileData(ProviderProfileData):
     display_name: str | None = None
-    reddit_username: str | None = None
+    provider_username: str | None = None
     avatar_url: str | None = None
     karma_post: int | None = None
     karma_comment: int | None = None
@@ -21,12 +22,15 @@ class RedditProfileData:
     is_gold: bool | None = None
 
 
-class RedditSyncService:
+class RedditProfileService:
     """Scrapes Reddit profile attributes using an account's persistent browser profile."""
+
+    def __init__(self, session_provider: RedditSessionProvider) -> None:
+        self.session_provider = session_provider
 
     async def sync_profile(self, account: Account) -> RedditProfileData:
         """Open the account profile page and extract available profile fields."""
-        active_session = await browser_manager.open_persistent_context(
+        active_session = await self.session_provider.open_persistent_context(
             account,
             headless=not account.launch_visible_browser,
         )
@@ -38,7 +42,7 @@ class RedditSyncService:
             await page.wait_for_timeout(2500)
             return await self._extract_profile(page, account)
         finally:
-            await browser_manager.close_session(account, active_session)
+            await self.session_provider.close_session(active_session)
 
     async def _extract_profile(self, page, account: Account) -> RedditProfileData:
         snapshot = await page.evaluate(
@@ -70,7 +74,7 @@ class RedditSyncService:
             display_name=self._clean_display_name(
                 snapshot.get("displayName") or self._display_name_from_title(snapshot.get("ogTitle") or snapshot.get("title"))
             ),
-            reddit_username=self._extract_username(text, account),
+            provider_username=self._extract_username(text, account),
             avatar_url=self._clean_url(snapshot.get("avatarUrl") or snapshot.get("ogImage")),
             karma_post=self._extract_labeled_number(text, "Post Karma"),
             karma_comment=self._extract_labeled_number(text, "Comment Karma"),
@@ -114,7 +118,7 @@ class RedditSyncService:
         for pattern in patterns:
             match = re.search(pattern, text, flags=re.IGNORECASE)
             if match:
-                return RedditSyncService._parse_number(match.group(1))
+                return RedditProfileService._parse_number(match.group(1))
         return None
 
     @staticmethod
