@@ -11,24 +11,41 @@ import {
   useRunCampaignWorkflow
 } from "../hooks/useCampaigns";
 import { useApplyBehaviorTemplate, useBehaviorTemplates } from "../hooks/useBehaviorTemplates";
+import {
+  useCampaignSchedule,
+  useDeleteCampaignSchedule,
+  useRunCampaignScheduleNow,
+  useSaveCampaignSchedule
+} from "../hooks/useSchedules";
 import { cn } from "../lib/utils";
 import { useToast } from "../store/useToast";
 import type { BehaviorTemplate } from "../types/behaviorTemplate";
 import type { CampaignRunResponse, WorkflowActionType, WorkflowInputStep } from "../types/campaign";
+import type { CampaignSchedule, ScheduleType } from "../types/schedule";
 
 export function CampaignDetailPage() {
   const { campaignId = "" } = useParams();
   const campaign = useCampaign(campaignId);
   const workflow = useCampaignWorkflow(campaignId);
+  const schedule = useCampaignSchedule(campaignId);
   const templates = useBehaviorTemplates();
   const replaceWorkflow = useReplaceCampaignWorkflow(campaignId);
   const applyTemplate = useApplyBehaviorTemplate(campaignId);
   const runWorkflow = useRunCampaignWorkflow(campaignId);
+  const saveSchedule = useSaveCampaignSchedule(campaignId, Boolean(schedule.data));
+  const deleteSchedule = useDeleteCampaignSchedule(campaignId);
+  const runScheduleNow = useRunCampaignScheduleNow(campaignId);
   const { notify } = useToast();
   const [steps, setSteps] = useState<WorkflowInputStep[]>([]);
   const [lastRun, setLastRun] = useState<CampaignRunResponse | null>(null);
   const [templatePanelOpen, setTemplatePanelOpen] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const [scheduleEnabled, setScheduleEnabled] = useState(true);
+  const [scheduleType, setScheduleType] = useState<ScheduleType>("DAILY");
+  const [scheduleTime, setScheduleTime] = useState("09:00");
+  const [scheduleTimezone, setScheduleTimezone] = useState(defaultTimezone());
+  const [scheduleCron, setScheduleCron] = useState("0 9 * * *");
+  const [scheduleRunAt, setScheduleRunAt] = useState("");
 
   useEffect(() => {
     if (workflow.data) {
@@ -40,6 +57,21 @@ export function CampaignDetailPage() {
       );
     }
   }, [workflow.data]);
+
+  useEffect(() => {
+    if (!schedule.data) {
+      return;
+    }
+    setScheduleEnabled(schedule.data.enabled);
+    setScheduleType(schedule.data.schedule_type);
+    setScheduleTimezone(schedule.data.timezone);
+    setScheduleCron(schedule.data.cron_expression ?? "0 9 * * *");
+    setScheduleRunAt(schedule.data.next_run_at ? toDateTimeLocal(schedule.data.next_run_at) : "");
+    const parsedTime = timeFromCron(schedule.data.cron_expression);
+    if (parsedTime) {
+      setScheduleTime(parsedTime);
+    }
+  }, [schedule.data]);
 
   function addStep() {
     setSteps((current) => [...current, { action_type: "WAIT", config: { min_seconds: 5, max_seconds: 12 } }]);
@@ -131,6 +163,42 @@ export function CampaignDetailPage() {
         setTemplatePanelOpen(false);
       },
       onError: () => notify("Unable to apply template.", "error")
+    });
+  }
+
+  function saveCampaignSchedule() {
+    const input = scheduleInput({
+      enabled: scheduleEnabled,
+      scheduleType,
+      scheduleTime,
+      timezone: scheduleTimezone,
+      cron: scheduleCron,
+      runAt: scheduleRunAt
+    });
+    saveSchedule.mutate(input, {
+      onSuccess: () => notify("Schedule saved.", "success"),
+      onError: () => notify("Unable to save schedule.", "error")
+    });
+  }
+
+  function disableCampaignSchedule() {
+    if (!schedule.data) {
+      return;
+    }
+    deleteSchedule.mutate(undefined, {
+      onSuccess: () => notify("Schedule disabled.", "success"),
+      onError: () => notify("Unable to disable schedule.", "error")
+    });
+  }
+
+  function runNow() {
+    setLastRun(null);
+    runScheduleNow.mutate(undefined, {
+      onSuccess: (response) => {
+        setLastRun(response);
+        notify(response.success ? "Scheduled run completed." : "Scheduled run finished with failures.", response.success ? "success" : "error");
+      },
+      onError: () => notify("Unable to run schedule.", "error")
     });
   }
 
@@ -230,8 +298,160 @@ export function CampaignDetailPage() {
         </div>
       </section>
 
+      <SchedulePanel
+        schedule={schedule.data ?? null}
+        enabled={scheduleEnabled}
+        scheduleType={scheduleType}
+        time={scheduleTime}
+        timezone={scheduleTimezone}
+        cron={scheduleCron}
+        runAt={scheduleRunAt}
+        isLoading={schedule.isLoading}
+        isSaving={saveSchedule.isPending}
+        isDeleting={deleteSchedule.isPending}
+        isRunning={runScheduleNow.isPending}
+        onEnabledChange={setScheduleEnabled}
+        onScheduleTypeChange={setScheduleType}
+        onTimeChange={setScheduleTime}
+        onTimezoneChange={setScheduleTimezone}
+        onCronChange={setScheduleCron}
+        onRunAtChange={setScheduleRunAt}
+        onSave={saveCampaignSchedule}
+        onDisable={disableCampaignSchedule}
+        onRunNow={runNow}
+      />
+
       {lastRun ? <WorkflowRunPanel run={lastRun} /> : null}
     </div>
+  );
+}
+
+function SchedulePanel({
+  schedule,
+  enabled,
+  scheduleType,
+  time,
+  timezone,
+  cron,
+  runAt,
+  isLoading,
+  isSaving,
+  isDeleting,
+  isRunning,
+  onEnabledChange,
+  onScheduleTypeChange,
+  onTimeChange,
+  onTimezoneChange,
+  onCronChange,
+  onRunAtChange,
+  onSave,
+  onDisable,
+  onRunNow
+}: {
+  schedule: CampaignSchedule | null;
+  enabled: boolean;
+  scheduleType: ScheduleType;
+  time: string;
+  timezone: string;
+  cron: string;
+  runAt: string;
+  isLoading: boolean;
+  isSaving: boolean;
+  isDeleting: boolean;
+  isRunning: boolean;
+  onEnabledChange: (value: boolean) => void;
+  onScheduleTypeChange: (value: ScheduleType) => void;
+  onTimeChange: (value: string) => void;
+  onTimezoneChange: (value: string) => void;
+  onCronChange: (value: string) => void;
+  onRunAtChange: (value: string) => void;
+  onSave: () => void;
+  onDisable: () => void;
+  onRunNow: () => void;
+}) {
+  return (
+    <section className="rounded-md border border-border bg-white p-5">
+      <div className="flex flex-col gap-3 border-b border-border pb-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-base font-semibold">Schedule</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Automatically run this campaign through the Scheduler Engine.</p>
+        </div>
+        <div className="text-sm text-muted-foreground">
+          {schedule?.next_run_at ? `Next: ${formatDate(schedule.next_run_at)}` : "No upcoming run"}
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="py-6 text-sm text-muted-foreground">Loading schedule...</div>
+      ) : (
+        <div className="mt-4 grid gap-4 lg:grid-cols-[160px_180px_180px_minmax(0,1fr)]">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={enabled}
+              onChange={(event) => onEnabledChange(event.target.checked)}
+              className="h-4 w-4 rounded border-border"
+            />
+            Enabled
+          </label>
+          <label className="space-y-1">
+            <span className="text-xs font-medium text-muted-foreground">Schedule Type</span>
+            <select
+              value={scheduleType}
+              onChange={(event) => onScheduleTypeChange(event.target.value as ScheduleType)}
+              className="flex h-10 w-full rounded-md border border-input bg-white px-3 text-sm outline-none"
+            >
+              <option value="ONCE">ONCE</option>
+              <option value="DAILY">DAILY</option>
+              <option value="WEEKLY">WEEKLY</option>
+              <option value="CUSTOM_CRON">CUSTOM_CRON</option>
+            </select>
+          </label>
+          <label className="space-y-1">
+            <span className="text-xs font-medium text-muted-foreground">Timezone</span>
+            <Input value={timezone} onChange={(event) => onTimezoneChange(event.target.value)} />
+          </label>
+          {scheduleType === "ONCE" ? (
+            <label className="space-y-1">
+              <span className="text-xs font-medium text-muted-foreground">Run At</span>
+              <Input type="datetime-local" value={runAt} onChange={(event) => onRunAtChange(event.target.value)} />
+            </label>
+          ) : scheduleType === "CUSTOM_CRON" ? (
+            <label className="space-y-1">
+              <span className="text-xs font-medium text-muted-foreground">Cron</span>
+              <Input value={cron} onChange={(event) => onCronChange(event.target.value)} placeholder="0 9 * * *" />
+            </label>
+          ) : (
+            <label className="space-y-1">
+              <span className="text-xs font-medium text-muted-foreground">Time</span>
+              <Input type="time" value={time} onChange={(event) => onTimeChange(event.target.value)} />
+            </label>
+          )}
+        </div>
+      )}
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Button type="button" onClick={onSave} disabled={isSaving}>
+          <Save size={16} />
+          {isSaving ? "Saving..." : "Save Schedule"}
+        </Button>
+        <Button type="button" variant="secondary" onClick={onRunNow} disabled={!schedule || isRunning}>
+          <Play size={16} />
+          {isRunning ? "Running..." : "Run Now"}
+        </Button>
+        <Button type="button" variant="secondary" onClick={onDisable} disabled={!schedule || isDeleting}>
+          <Trash2 size={16} />
+          {isDeleting ? "Disabling..." : "Disable Schedule"}
+        </Button>
+      </div>
+
+      {schedule?.last_status ? (
+        <div className="mt-3 text-sm text-muted-foreground">
+          Last status: {schedule.last_status}
+          {schedule.last_run_at ? ` · ${formatDate(schedule.last_run_at)}` : ""}
+        </div>
+      ) : null}
+    </section>
   );
 }
 
@@ -454,6 +674,68 @@ function defaultConfig(actionType: WorkflowActionType, targetUrl: string): Recor
     return { strategy: "random" };
   }
   return {};
+}
+
+function scheduleInput({
+  enabled,
+  scheduleType,
+  scheduleTime,
+  timezone,
+  cron,
+  runAt
+}: {
+  enabled: boolean;
+  scheduleType: ScheduleType;
+  scheduleTime: string;
+  timezone: string;
+  cron: string;
+  runAt: string;
+}) {
+  return {
+    enabled,
+    schedule_type: scheduleType,
+    cron_expression: scheduleType === "CUSTOM_CRON" ? cron : recurringCron(scheduleType, scheduleTime),
+    timezone,
+    next_run_at: scheduleType === "ONCE" && runAt ? new Date(runAt).toISOString() : null
+  };
+}
+
+function recurringCron(scheduleType: ScheduleType, time: string) {
+  if (scheduleType === "ONCE") {
+    return null;
+  }
+  const [hour = "9", minute = "0"] = time.split(":");
+  if (scheduleType === "WEEKLY") {
+    return `${Number(minute)} ${Number(hour)} * * 1`;
+  }
+  return `${Number(minute)} ${Number(hour)} * * *`;
+}
+
+function timeFromCron(value: string | null) {
+  if (!value) {
+    return null;
+  }
+  const parts = value.trim().split(/\s+/);
+  if (parts.length < 2) {
+    return null;
+  }
+  const minute = parts[0].padStart(2, "0");
+  const hour = parts[1].padStart(2, "0");
+  return `${hour}:${minute}`;
+}
+
+function defaultTimezone() {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+}
+
+function toDateTimeLocal(value: string) {
+  const date = new Date(value);
+  const offsetMs = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+}
+
+function formatDate(value: string) {
+  return new Date(value).toLocaleString();
 }
 
 function StatePanel({ title, tone = "default" }: { title: string; tone?: "default" | "error" }) {

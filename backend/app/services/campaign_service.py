@@ -75,6 +75,10 @@ class CampaignService:
         """Run a campaign through the WorkflowService."""
         return await WorkflowService(self.session).run_workflow(campaign_id)
 
+    async def run(self, campaign_id: UUID) -> WorkflowRunResponse:
+        """Run a campaign through the public scheduler-facing service method."""
+        return await self.run_campaign(campaign_id)
+
     async def _get_campaign_model(self, campaign_id: UUID) -> Campaign:
         campaign = await self.campaigns.get(campaign_id)
         if campaign is None:

@@ -15,12 +15,14 @@ import { HealthOverviewTable } from "../components/dashboard/HealthOverviewTable
 import { QuickActionsPanel } from "../components/dashboard/QuickActionsPanel";
 import { RecentCampaignsTable } from "../components/dashboard/RecentCampaignsTable";
 import { RecommendedActionsPanel } from "../components/dashboard/RecommendedActionsPanel";
+import { UpcomingRunsPanel } from "../components/dashboard/UpcomingRunsPanel";
 import { useActivities } from "../hooks/useActivities";
 import { useAccounts } from "../hooks/useAccounts";
 import { useBehaviorTemplates } from "../hooks/useBehaviorTemplates";
 import { useCampaigns, useRunCampaign } from "../hooks/useCampaigns";
 import { useEvaluateAllHealth, useHealth } from "../hooks/useHealth";
 import { useEvaluateAllRecommendations, useRecommendations } from "../hooks/useRecommendations";
+import { useSchedules } from "../hooks/useSchedules";
 import { useToast } from "../store/useToast";
 import type { Campaign } from "../types/campaign";
 
@@ -30,6 +32,7 @@ export function DashboardPage() {
   const campaigns = useCampaigns();
   const health = useHealth();
   const recommendations = useRecommendations();
+  const schedules = useSchedules();
   const templates = useBehaviorTemplates();
   const runCampaign = useRunCampaign();
   const evaluateHealth = useEvaluateAllHealth();
@@ -41,6 +44,7 @@ export function DashboardPage() {
   const campaignList = campaigns.data ?? [];
   const healthList = health.data ?? [];
   const recommendationList = recommendations.data ?? [];
+  const scheduleList = schedules.data ?? [];
   const templateList = templates.data ?? [];
 
   const healthyAccounts = healthList.filter((record) => record.health_status === "HEALTHY").length;
@@ -181,6 +185,13 @@ export function DashboardPage() {
           isLoading={accounts.isLoading || activities.isLoading}
         />
       </div>
+
+      <UpcomingRunsPanel
+        campaigns={campaignList}
+        schedules={scheduleList}
+        isError={campaigns.isError || schedules.isError}
+        isLoading={campaigns.isLoading || schedules.isLoading}
+      />
     </div>
   );
 }

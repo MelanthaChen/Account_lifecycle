@@ -3,11 +3,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.router import api_router
 from app.core.config import get_settings
+from app.services.scheduler_service import scheduler_lifespan
 
 settings = get_settings()
 
 
-app = FastAPI(title=settings.app_name)
+app = FastAPI(title=settings.app_name, lifespan=scheduler_lifespan)
 
 app.add_middleware(
     CORSMiddleware,

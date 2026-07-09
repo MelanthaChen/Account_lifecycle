@@ -3,11 +3,11 @@ from uuid import UUID, uuid4
 
 from typing import Any
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, JSON, String, Text, UniqueConstraint, func
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, JSON, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
-from app.models.enums import CampaignActionType, CampaignStatus, Platform, WorkflowActionType
+from app.models.enums import CampaignActionType, CampaignStatus, Platform, ScheduleType, WorkflowActionType
 
 
 class Campaign(Base):
@@ -100,6 +100,44 @@ class WorkflowStep(Base):
         nullable=False,
     )
     config: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+
+class CampaignSchedule(Base):
+    __tablename__ = "campaign_schedules"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    campaign_id: Mapped[UUID] = mapped_column(
+        ForeignKey("campaigns.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    schedule_type: Mapped[ScheduleType] = mapped_column(
+        Enum(
+            ScheduleType,
+            name="schedule_type",
+            values_callable=lambda enum: [item.value for item in enum],
+            validate_strings=True,
+        ),
+        nullable=False,
+    )
+    cron_expression: Mapped[str | None] = mapped_column(String(120))
+    timezone: Mapped[str] = mapped_column(String(80), default="UTC", nullable=False)
+    next_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_status: Mapped[str | None] = mapped_column(String(40))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

@@ -49,6 +49,13 @@ class CampaignStatus(StrEnum):
     FAILED = "Failed"
 
 
+class ScheduleType(StrEnum):
+    ONCE = "ONCE"
+    DAILY = "DAILY"
+    WEEKLY = "WEEKLY"
+    CUSTOM_CRON = "CUSTOM_CRON"
+
+
 class WorkflowActionType(StrEnum):
     OPEN_URL = "OPEN_URL"
     WAIT = "WAIT"
