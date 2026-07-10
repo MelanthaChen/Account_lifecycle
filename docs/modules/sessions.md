@@ -42,7 +42,8 @@ Manages account browser session lifecycle and persists login state.
 
 - `BrowserSessionService`
 - `BrowserManager`
-- `RedditSessionProvider`
+- `ProviderManager`
+- `RedditProvider`
 - `ActivityService`
 
 ## Sequence Diagram
@@ -52,7 +53,8 @@ Create Session
   -> BrowserSessionService
   -> ActivityService RUNNING
   -> BrowserManager
-  -> RedditSessionProvider
+  -> ProviderManager
+  -> RedditProvider
   -> launch persistent context
   -> open Reddit login
   -> ActivityService SUCCESS
@@ -61,7 +63,6 @@ Create Session
 
 ## Extension Guide
 
-- Implement `BrowserSessionProvider` for the new platform.
-- Register it in `BrowserSessionProviderRegistry`.
+- Implement `Provider` for the new platform.
+- Register it in `ProviderManager`.
 - Keep provider-specific URLs inside the provider.
-

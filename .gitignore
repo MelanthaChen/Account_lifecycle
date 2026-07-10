@@ -18,3 +18,9 @@ storage/**
 !storage/.gitkeep
 !storage/*/
 !storage/*/.gitkeep
+
+backend/storage/**
+!backend/storage/
+!backend/storage/.gitkeep
+!backend/storage/*/
+!backend/storage/*/.gitkeep

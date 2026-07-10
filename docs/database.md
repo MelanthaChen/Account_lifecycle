@@ -11,6 +11,7 @@ accounts
   |----* campaign_accounts *----1 campaigns
                                | 1
                                |----* workflow_steps
+                               |----1 campaign_schedules
 
 behavior_templates
   | 1
@@ -128,6 +129,27 @@ Constraints:
 
 - Unique `(campaign_id, step_order)`
 
+## campaign_schedules
+
+Purpose: stores APScheduler-backed campaign run schedules.
+
+Columns:
+
+- `id` UUID primary key
+- `campaign_id` FK to `campaigns.id`, unique
+- `enabled` boolean
+- `schedule_type`: `ONCE`, `DAILY`, `WEEKLY`, `CUSTOM_CRON`
+- `cron_expression`
+- `timezone`
+- `next_run_at`
+- `last_run_at`
+- `last_status`
+- `created_at`, `updated_at`
+
+Foreign keys:
+
+- `campaign_id -> campaigns.id ON DELETE CASCADE`
+
 ## behavior_templates
 
 Purpose: reusable workflow definitions.
@@ -181,4 +203,3 @@ Columns:
 - `status`: `ACTIVE`, `DISMISSED`, `COMPLETED`
 - `reason` JSON
 - `created_at`, `updated_at`
-

@@ -264,3 +264,41 @@ Evaluates recommendations for one account.
 
 Marks a recommendation as dismissed.
 
+## Schedules
+
+### GET /schedules
+
+Lists all campaign schedules.
+
+### GET /campaigns/{campaign_id}/schedule
+
+Returns the schedule for one campaign.
+
+### POST /campaigns/{campaign_id}/schedule
+
+Creates a schedule for one campaign.
+
+Example:
+
+```json
+{
+  "enabled": true,
+  "schedule_type": "DAILY",
+  "cron_expression": "0 9 * * *",
+  "timezone": "America/New_York",
+  "next_run_at": null
+}
+```
+
+### PUT /campaigns/{campaign_id}/schedule
+
+Replaces a campaign schedule.
+
+### DELETE /campaigns/{campaign_id}/schedule
+
+Deletes a campaign schedule and unregisters its scheduler job.
+
+### POST /campaigns/{campaign_id}/schedule/run-now
+
+Immediately runs the schedule through SchedulerService, which delegates campaign execution to
+CampaignService.

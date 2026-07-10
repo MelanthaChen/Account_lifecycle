@@ -3,11 +3,12 @@
 ## How To Add A Provider
 
 1. Add provider enum values in `backend/app/models/enums.py`.
-2. Implement `BrowserSessionProvider` in `backend/app/services/browser_sessions/`.
-3. Register it in `browser_session_provider_registry`.
-4. Add provider-specific sync service if profile sync is needed.
-5. Keep routers unchanged where possible; services should resolve behavior by `account.platform`.
-6. Extend frontend platform options and labels.
+2. Create a provider package under `backend/app/providers/<provider_name>/`.
+3. Implement the `Provider` protocol from `backend/app/providers/base.py`.
+4. Register the provider in `ProviderManager`.
+5. Keep routers unchanged where possible; services should resolve providers by `account.platform`.
+6. Put platform-specific selectors, cookies, scraping, actions, and browser behavior inside the provider.
+7. Extend frontend platform options and labels.
 
 ## How To Add A Workflow Action
 
@@ -63,4 +64,3 @@
 - Provider-specific browser behavior stays behind provider classes.
 - Frontend API calls live in `frontend/src/api`.
 - TanStack Query hooks live in `frontend/src/hooks`.
-

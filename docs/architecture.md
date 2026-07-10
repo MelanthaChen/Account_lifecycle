@@ -15,7 +15,7 @@ frontend/src/pages
   -> PostgreSQL
 ```
 
-Browser automation is isolated behind `BrowserManager` and provider implementations under `backend/app/services/browser_sessions/`.
+Browser automation is isolated behind `BrowserManager` and provider implementations under `backend/app/providers/`.
 
 ## Major Modules
 
@@ -33,6 +33,7 @@ Behavior Library    Reusable workflow templates
 Health              Rule-based account scoring
 Recommendation      Rule-based next-best actions
 Dashboard           Frontend control center
+Scheduler           APScheduler-backed campaign schedule orchestration
 ```
 
 ## Responsibilities
@@ -64,10 +65,11 @@ Providers
 React UI
   -> FastAPI API
     -> AccountService
-    -> BrowserSessionService -> BrowserManager -> ProviderRegistry -> RedditSessionProvider
-    -> CampaignService -> WorkflowService -> BehaviorService / UpvoteService
+    -> BrowserSessionService -> BrowserManager -> ProviderManager -> RedditProvider
+    -> CampaignService -> WorkflowService -> BehaviorService / UpvoteService -> ProviderManager
     -> HealthService -> AccountRepository / Activity / Campaigns
     -> RecommendationService -> HealthService / BehaviorTemplateRepository
+    -> SchedulerService -> CampaignService
     -> ActivityService -> ActivityRepository
 ```
 
@@ -112,6 +114,22 @@ POST /campaigns/{id}/run
   -> delegate to WorkflowService
 ```
 
+## Scheduler Lifecycle
+
+```text
+FastAPI startup
+  -> scheduler_lifespan
+  -> SchedulerRuntime.start
+  -> load enabled campaign_schedules
+  -> register APScheduler jobs
+
+Job fires or Run Now
+  -> SchedulerService.execute_schedule
+  -> CampaignService.run
+  -> WorkflowService.run_workflow
+  -> update campaign_schedules last_run_at/last_status
+```
+
 ## Browser Session Lifecycle
 
 ```text
@@ -148,4 +166,3 @@ types/
 store/
   lightweight Zustand state
 ```
-

@@ -14,19 +14,18 @@
 - Behavior Library.
 - Health Engine.
 - Recommendation Engine.
+- Scheduler Engine.
 - Dashboard 2.0 control center.
 
 ## In Progress
 
-- Documentation Sprint v1.
+- Deployment documentation hardening.
 
 ## Planned
 
-- Additional provider implementations behind the browser session provider registry.
+- Additional provider implementations behind `ProviderManager`.
 - Additional workflow actions.
 - Additional campaign action types.
-- Scheduler/background job integration.
 - More complete analytics pages.
 - Broader operational reporting from Activity records.
 - Stronger testing coverage around browser-provider workflows.
-

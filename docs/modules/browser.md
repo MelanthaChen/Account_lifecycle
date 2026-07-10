@@ -32,16 +32,16 @@ Browser actions are exposed through account session APIs, not through BrowserMan
 ## Related Services
 
 - `BrowserManager`
-- `BrowserSessionProviderRegistry`
-- `BrowserSessionProvider`
-- `RedditSessionProvider`
+- `ProviderManager`
+- `Provider`
+- `RedditProvider`
 
 ## Sequence Diagram
 
 ```text
 Service
   -> BrowserManager
-  -> ProviderRegistry.get(account.platform)
+  -> ProviderManager.get_provider(account.platform)
   -> Provider method
   -> Playwright async API
   -> storage/reddit/<account>/
@@ -49,7 +49,6 @@ Service
 
 ## Extension Guide
 
-- Add provider classes under `backend/app/services/browser_sessions/`.
-- Provider methods should remain generic: `create_session`, `finish_session`, `validate`, `refresh`, `delete`, `open_url`.
+- Add provider classes under `backend/app/providers/<provider>/`.
+- Provider methods should remain generic: `create_session`, `finish_session`, `validate_session`, `refresh_session`, `delete_session`, `open_url`.
 - Do not expose provider-specific methods to routers.
-

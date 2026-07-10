@@ -47,10 +47,17 @@ backend/app/services/
 Business workflows and orchestration.
 
 ```text
+backend/app/providers/
+```
+
+Provider abstraction and provider-specific runtime implementations. Reddit currently lives in
+`backend/app/providers/reddit/`.
+
+```text
 backend/app/services/browser_sessions/
 ```
 
-Provider-specific browser session implementations.
+Legacy browser session protocol namespace retained for shared result types.
 
 ```text
 backend/alembic/
@@ -100,7 +107,8 @@ Frontend DTO types.
 
 ## storage/
 
-Runtime browser identity storage. Example:
+Runtime browser identity storage. The application uses repository-root `storage/`, not
+`backend/storage/`. Example:
 
 ```text
 storage/reddit/<account>/
@@ -117,4 +125,3 @@ Runtime browser files should not be treated as source files.
 ## docs/
 
 Engineering documentation for architecture, APIs, modules, database, roadmap, and developer workflows.
-
