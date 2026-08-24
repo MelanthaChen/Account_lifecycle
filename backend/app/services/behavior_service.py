@@ -16,7 +16,7 @@ class BehaviorResult:
 
 
 class BehaviorService:
-    """Legacy placeholder after browser runtime extraction."""
+    """Backend guard for behavior execution now owned by the Automation Agent."""
 
     async def start(self, account: Account) -> BehaviorSession:
         """Reject backend behavior execution."""

@@ -13,7 +13,7 @@ class OpenUrlResult:
 
 
 class OpenUrlService:
-    """Legacy placeholder after browser runtime extraction."""
+    """Backend guard for URL opening now owned by the Automation Agent."""
 
     async def open_url(self, account: Account, target_url: str) -> OpenUrlResult:
         """Reject backend URL opening because provider runtime lives in the agent."""

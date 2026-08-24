@@ -136,13 +136,9 @@ export function CampaignsPage() {
               />
             </Field>
             <Field label="Action Type">
-              <select
-                value="UPVOTE"
-                disabled
-                className="flex h-10 w-full rounded-md border border-input bg-muted px-3 text-sm outline-none"
-              >
-                <option value="UPVOTE">UPVOTE</option>
-              </select>
+              <div className="flex h-10 w-full items-center rounded-md border border-input bg-muted px-3 text-sm font-medium">
+                UPVOTE
+              </div>
             </Field>
           </div>
           <Field label="Description">

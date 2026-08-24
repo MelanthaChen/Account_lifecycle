@@ -40,7 +40,7 @@ def authenticate_agent(
         expected_secret = next(iter(settings.automation_workers.values()))
     if not expected_secret or supplied_secret != expected_secret:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Invalid Automation Agent secret")
-    # TODO: this is intentionally a single-agent identity. A distributed runtime can add routing later.
+    # Single-agent identity by design; distributed routing can be added behind this boundary later.
     return x_agent_name or settings.automation_agent_name or x_worker_id or "automation-agent"
 
 

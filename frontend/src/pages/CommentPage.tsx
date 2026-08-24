@@ -8,7 +8,6 @@ import { useAutomationJobs } from "../hooks/useAutomationJobs";
 import { useCreateCommentRequest } from "../hooks/useComment";
 import { cn } from "../lib/utils";
 import { useToast } from "../store/useToast";
-import type { CommentSource } from "../api/comment";
 import type { Account } from "../types/account";
 import type { AutomationJob } from "../types/automationJob";
 
@@ -25,7 +24,6 @@ export function CommentPage() {
   const { notify } = useToast();
   const [targetUrl, setTargetUrl] = useState("");
   const [commentText, setCommentText] = useState("");
-  const [commentSource, setCommentSource] = useState<CommentSource>("MANUAL_TEXT");
   const [accountIds, setAccountIds] = useState<string[]>([]);
   const [jobIds, setJobIds] = useState<string[]>([]);
   const [queuedJobs, setQueuedJobs] = useState<AutomationJob[]>([]);
@@ -92,12 +90,6 @@ export function CommentPage() {
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (commentSource !== "MANUAL_TEXT") {
-      setLastStatus("error");
-      appendLog("Only Manual Text is available right now.", "error");
-      notify("Only Manual Text is available right now.", "error");
-      return;
-    }
     if (accountIds.length === 0 || !targetUrl.trim() || !commentText.trim()) {
       setLastStatus("error");
       appendLog("Target URL, comment text, and at least one account are required.", "error");
@@ -174,28 +166,6 @@ export function CommentPage() {
               onChange={(event) => setTargetUrl(event.target.value)}
             />
           </div>
-
-          <fieldset className="space-y-3">
-            <legend className="text-sm font-medium">Comment Source</legend>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="radio"
-                name="comment-source"
-                value="MANUAL_TEXT"
-                checked={commentSource === "MANUAL_TEXT"}
-                onChange={() => setCommentSource("MANUAL_TEXT")}
-              />
-              Manual Text
-            </label>
-            <label className="flex items-center gap-2 text-sm text-muted-foreground">
-              <input type="radio" name="comment-source" value="AI_GENERATE" disabled />
-              AI Generate
-            </label>
-            <label className="flex items-center gap-2 text-sm text-muted-foreground">
-              <input type="radio" name="comment-source" value="BEHAVIOR_TEMPLATE" disabled />
-              Behavior Library Template
-            </label>
-          </fieldset>
 
           <div className="space-y-2">
             <label htmlFor="comment-text" className="text-sm font-medium">
