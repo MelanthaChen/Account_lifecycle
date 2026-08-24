@@ -1,21 +1,19 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import logging
-from pathlib import Path
 import re
 import shutil
+from dataclasses import dataclass
+from pathlib import Path
 
-from app.models.account import Account
-from app.models.enums import Platform
-from app.services.browser_sessions.base import BrowserSessionResult
-
+from browser_sessions.base import BrowserSessionResult
+from runtime_types import AccountLike, Platform
 
 VALID_STATUS = "valid"
 INVALID_STATUS = "invalid"
 LOGIN_REQUIRED_STATUS = "login_required"
 MISSING_STATUS = "missing"
-PROJECT_ROOT = Path(__file__).resolve().parents[4]
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 logger = logging.getLogger(__name__)
 
 
@@ -37,35 +35,35 @@ class RedditSessionProvider:
         storage_root = storage_root or PROJECT_ROOT / "storage"
         self.storage_root = Path(storage_root)
 
-    def get_storage_directory(self, account: Account) -> Path:
+    def get_storage_directory(self, account: AccountLike) -> Path:
         """Return the account-owned storage directory."""
         if account.storage_directory:
             return self._resolve_storage_path(Path(account.storage_directory))
         return self.storage_root / self.platform / self._account_directory_name(account)
 
-    def get_profile_directory(self, account: Account) -> Path:
+    def get_profile_directory(self, account: AccountLike) -> Path:
         """Return the persistent Chromium profile directory."""
         if account.browser_profile_path:
             return self._resolve_storage_path(Path(account.browser_profile_path))
         return self.get_storage_directory(account) / "profile"
 
-    def get_state_path(self, account: Account) -> Path:
+    def get_state_path(self, account: AccountLike) -> Path:
         """Return the Playwright storage state path for an account."""
         return self.get_storage_directory(account) / "storage_state.json"
 
-    async def create_session(self, account: Account) -> BrowserSessionResult:
+    async def create_session(self, account: AccountLike) -> BrowserSessionResult:
         """Launch Reddit login and keep the browser context alive for manual login."""
         return await self._create_session(account)
 
-    async def validate(self, account: Account) -> BrowserSessionResult:
+    async def validate(self, account: AccountLike) -> BrowserSessionResult:
         """Validate whether Reddit authentication cookies are present."""
         return await self._validate(account)
 
-    async def refresh(self, account: Account) -> BrowserSessionResult:
+    async def refresh(self, account: AccountLike) -> BrowserSessionResult:
         """Refresh session state by validating the current profile."""
         return await self.validate(account)
 
-    async def delete(self, account: Account) -> BrowserSessionResult:
+    async def delete(self, account: AccountLike) -> BrowserSessionResult:
         """Delete the account storage directory."""
         return await self._delete(account)
 
@@ -73,27 +71,27 @@ class RedditSessionProvider:
         """Close a Reddit Playwright context and stop Playwright."""
         await self._close_session(active_session)
 
-    async def open_persistent_context(self, account: Account, *, headless: bool) -> object:
+    async def open_persistent_context(self, account: AccountLike, *, headless: bool) -> object:
         """Open the Reddit account's persistent Chromium profile."""
         return await self._open_persistent_context(account, headless=headless)
 
-    async def logout(self, account: Account) -> BrowserSessionResult:
+    async def logout(self, account: AccountLike) -> BrowserSessionResult:
         """Clear Reddit cookies and remove storage state."""
         return await self._logout(account)
 
-    async def open_browser(self, account: Account) -> BrowserSessionResult:
+    async def open_browser(self, account: AccountLike) -> BrowserSessionResult:
         """Open a blank Reddit profile browser window."""
         return await self.open_url(account, "about:blank")
 
-    async def open_url(self, account: Account, url: str) -> BrowserSessionResult:
+    async def open_url(self, account: AccountLike, url: str) -> BrowserSessionResult:
         """Open a URL in the Reddit account's persistent browser profile."""
         return await self._open_url(account, url)
 
-    async def open_home(self, account: Account) -> BrowserSessionResult:
+    async def open_home(self, account: AccountLike) -> BrowserSessionResult:
         """Open Reddit home in the account's persistent browser profile."""
         return await self.open_url(account, self.home_url)
 
-    async def _create_session(self, account: Account) -> BrowserSessionResult:
+    async def _create_session(self, account: AccountLike) -> BrowserSessionResult:
         storage_directory = self.ensure_storage_directories(account)
         profile_directory = self.get_profile_directory(account)
 
@@ -111,11 +109,11 @@ class RedditSessionProvider:
             active_session=active_session,
         )
 
-    async def finish_session(self, account: Account, active_session: object | None = None) -> BrowserSessionResult:
+    async def finish_session(self, account: AccountLike, active_session: object | None = None) -> BrowserSessionResult:
         """Persist storage state from the active manual login browser context."""
         return await self._finish_session(account, active_session)
 
-    async def _finish_session(self, account: Account, active_session: object | None = None) -> BrowserSessionResult:
+    async def _finish_session(self, account: AccountLike, active_session: object | None = None) -> BrowserSessionResult:
         logger.info("Finish Session received.")
         if active_session is None:
             logger.info("No running browser context found. Validating existing profile.")
@@ -150,7 +148,7 @@ class RedditSessionProvider:
             last_validation_changed=True,
         )
 
-    async def _validate(self, account: Account) -> BrowserSessionResult:
+    async def _validate(self, account: AccountLike) -> BrowserSessionResult:
         state_path = Path(account.session_path) if account.session_path else self.get_state_path(account)
         profile_directory = self.get_profile_directory(account)
 
@@ -180,7 +178,7 @@ class RedditSessionProvider:
             last_validation_changed=True,
         )
 
-    async def _delete(self, account: Account) -> BrowserSessionResult:
+    async def _delete(self, account: AccountLike) -> BrowserSessionResult:
         storage_directory = self.get_storage_directory(account)
 
         if storage_directory.exists():
@@ -193,7 +191,7 @@ class RedditSessionProvider:
             session_status=MISSING_STATUS,
         )
 
-    async def _logout(self, account: Account) -> BrowserSessionResult:
+    async def _logout(self, account: AccountLike) -> BrowserSessionResult:
         state_path = self.get_state_path(account)
 
         active_session = await self._open_persistent_context(account, headless=True)
@@ -213,7 +211,7 @@ class RedditSessionProvider:
             last_validation_changed=True,
         )
 
-    async def _open_url(self, account: Account, url: str) -> BrowserSessionResult:
+    async def _open_url(self, account: AccountLike, url: str) -> BrowserSessionResult:
         active_session = await self._open_persistent_context(account, headless=False)
         try:
             context = active_session.context
@@ -228,7 +226,7 @@ class RedditSessionProvider:
 
         return self._result(account, session_status=account.session_status)
 
-    def ensure_storage_directories(self, account: Account) -> Path:
+    def ensure_storage_directories(self, account: AccountLike) -> Path:
         """Create the account-owned storage directory layout."""
         storage_directory = self.get_storage_directory(account)
         for child in ["profile", "screenshots", "downloads", "logs", "exports"]:
@@ -237,7 +235,7 @@ class RedditSessionProvider:
 
     def _result(
         self,
-        account: Account,
+        account: AccountLike,
         *,
         session_path: str | None = None,
         session_status: str | None = None,
@@ -261,7 +259,7 @@ class RedditSessionProvider:
         await active_session.context.close()
         await active_session.playwright.stop()
 
-    async def _open_persistent_context(self, account: Account, *, headless: bool) -> ActiveBrowserSession:
+    async def _open_persistent_context(self, account: AccountLike, *, headless: bool) -> ActiveBrowserSession:
         from playwright.async_api import async_playwright
 
         storage_directory = self.ensure_storage_directories(account)
@@ -290,7 +288,7 @@ class RedditSessionProvider:
         return file_size
 
     @staticmethod
-    def _account_directory_name(account: Account) -> str:
+    def _account_directory_name(account: AccountLike) -> str:
         raw_name = account.username or account.nickname or str(account.id)
         name = re.sub(r"[^A-Za-z0-9._-]+", "-", raw_name.strip())
         return name.strip("-") or str(account.id)

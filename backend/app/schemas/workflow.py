@@ -38,6 +38,7 @@ class WorkflowStepResult(BaseModel):
     success: bool
     reason: str | None = None
     detail: str | None = None
+    verified: bool | None = None
 
 
 class WorkflowAccountResult(BaseModel):

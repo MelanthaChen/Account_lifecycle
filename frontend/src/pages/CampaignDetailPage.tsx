@@ -4,13 +4,16 @@ import { Link, useParams } from "react-router-dom";
 
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
+import { Textarea } from "../components/ui/textarea";
 import {
   useCampaign,
   useCampaignWorkflow,
   useReplaceCampaignWorkflow,
-  useRunCampaignWorkflow
+  useRunCampaignWorkflow,
+  useUpdateCampaign
 } from "../hooks/useCampaigns";
 import { useApplyBehaviorTemplate, useBehaviorTemplates } from "../hooks/useBehaviorTemplates";
+import { useAutomationJobs } from "../hooks/useAutomationJobs";
 import {
   useCampaignSchedule,
   useDeleteCampaignSchedule,
@@ -27,6 +30,8 @@ export function CampaignDetailPage() {
   const { campaignId = "" } = useParams();
   const campaign = useCampaign(campaignId);
   const workflow = useCampaignWorkflow(campaignId);
+  const updateCampaign = useUpdateCampaign(campaignId);
+  const automationJobs = useAutomationJobs({ limit: 100 });
   const schedule = useCampaignSchedule(campaignId);
   const templates = useBehaviorTemplates();
   const replaceWorkflow = useReplaceCampaignWorkflow(campaignId);
@@ -46,6 +51,7 @@ export function CampaignDetailPage() {
   const [scheduleTimezone, setScheduleTimezone] = useState(defaultTimezone());
   const [scheduleCron, setScheduleCron] = useState("0 9 * * *");
   const [scheduleRunAt, setScheduleRunAt] = useState("");
+  const [commentText, setCommentText] = useState("");
 
   useEffect(() => {
     if (workflow.data) {
@@ -57,6 +63,12 @@ export function CampaignDetailPage() {
       );
     }
   }, [workflow.data]);
+
+  useEffect(() => {
+    if (campaign.data) {
+      setCommentText(campaign.data.comment_text ?? "");
+    }
+  }, [campaign.data]);
 
   useEffect(() => {
     if (!schedule.data) {
@@ -126,6 +138,14 @@ export function CampaignDetailPage() {
   }
 
   function saveWorkflow() {
+    if (hasCommentStep(steps) && !commentText.trim()) {
+      notify("Add comment text before saving a COMMENT workflow.", "error");
+      return;
+    }
+    if (hasCommentStep(steps) && !isCommentTextSaved(campaign.data?.comment_text ?? "", commentText)) {
+      notify("Save comment text before saving a COMMENT workflow.", "error");
+      return;
+    }
     replaceWorkflow.mutate(
       { steps },
       {
@@ -136,6 +156,14 @@ export function CampaignDetailPage() {
   }
 
   function run() {
+    if (hasCommentStep(steps) && !commentText.trim()) {
+      notify("Add comment text before running a COMMENT workflow.", "error");
+      return;
+    }
+    if (hasCommentStep(steps) && !isCommentTextSaved(campaign.data?.comment_text ?? "", commentText)) {
+      notify("Save comment text before running a COMMENT workflow.", "error");
+      return;
+    }
     setLastRun(null);
     runWorkflow.mutate(undefined, {
       onSuccess: (response) => {
@@ -144,6 +172,16 @@ export function CampaignDetailPage() {
       },
       onError: () => notify("Unable to run workflow.", "error")
     });
+  }
+
+  function saveCommentText() {
+    updateCampaign.mutate(
+      { comment_text: commentText.trim() || null },
+      {
+        onSuccess: () => notify("Comment text saved.", "success"),
+        onError: () => notify("Unable to save comment text.", "error")
+      }
+    );
   }
 
   function applySelectedTemplate() {
@@ -252,6 +290,30 @@ export function CampaignDetailPage() {
         />
       ) : null}
 
+      <section className="rounded-md border border-border bg-white p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="text-sm font-semibold">Comment Text</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Used only by COMMENT workflow steps. Leave empty for workflows without comments.
+            </p>
+          </div>
+          <Button type="button" variant="secondary" onClick={saveCommentText} disabled={updateCampaign.isPending}>
+            <Save size={16} />
+            {updateCampaign.isPending ? "Saving..." : "Save Comment"}
+          </Button>
+        </div>
+        <Textarea
+          value={commentText}
+          onChange={(event) => setCommentText(event.target.value)}
+          placeholder="Write the exact comment this campaign should submit."
+          className="mt-4 min-h-28"
+        />
+        {hasCommentStep(steps) && !commentText.trim() ? (
+          <p className="mt-2 text-xs text-red-700">Comment text is required because this workflow contains COMMENT.</p>
+        ) : null}
+      </section>
+
       <section className="rounded-md border border-border bg-white">
         <div className="border-b border-border px-4 py-3">
           <h2 className="text-sm font-semibold">Workflow</h2>
@@ -273,6 +335,7 @@ export function CampaignDetailPage() {
                   <option value="SCROLL">SCROLL</option>
                   <option value="OPEN_POST">OPEN_POST</option>
                   <option value="BACK">BACK</option>
+                  <option value="COMMENT">COMMENT</option>
                   <option value="UPVOTE">UPVOTE</option>
                 </select>
                 <StepConfigFields
@@ -321,8 +384,75 @@ export function CampaignDetailPage() {
         onRunNow={runNow}
       />
 
+      <AutomationJobsPanel
+        jobs={(automationJobs.data ?? []).filter((job) => job.campaign_id === campaignId)}
+        isLoading={automationJobs.isLoading}
+        isError={automationJobs.isError}
+      />
+
       {lastRun ? <WorkflowRunPanel run={lastRun} /> : null}
     </div>
+  );
+}
+
+function AutomationJobsPanel({
+  jobs,
+  isLoading,
+  isError
+}: {
+  jobs: Array<{
+    id: string;
+    account_id: string;
+    status: string;
+    worker_id: string | null;
+    queued_at: string;
+    started_at: string | null;
+    completed_at: string | null;
+  }>;
+  isLoading: boolean;
+  isError: boolean;
+}) {
+  return (
+    <section className="rounded-md border border-border bg-white p-5">
+      <div className="border-b border-border pb-3">
+        <h2 className="text-base font-semibold">Automation Jobs</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Queued and running work picked up by local automation agents.</p>
+      </div>
+      {isLoading ? (
+        <div className="py-6 text-sm text-muted-foreground">Loading jobs...</div>
+      ) : isError ? (
+        <div className="py-6 text-sm text-red-700">Unable to load jobs.</div>
+      ) : jobs.length === 0 ? (
+        <div className="py-6 text-sm text-muted-foreground">No automation jobs yet.</div>
+      ) : (
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full min-w-[720px] text-left text-sm">
+            <thead className="text-xs uppercase text-muted-foreground">
+              <tr>
+                <th className="py-2 pr-4">Status</th>
+                <th className="py-2 pr-4">Worker</th>
+                <th className="py-2 pr-4">Queued</th>
+                <th className="py-2 pr-4">Started</th>
+                <th className="py-2 pr-4">Finished</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {jobs.map((job) => (
+                <tr key={job.id}>
+                  <td className="py-2 pr-4">
+                    <span className={cn("rounded px-2 py-1 text-xs font-medium", jobStatusClass(job.status))}>{job.status}</span>
+                  </td>
+                  <td className="py-2 pr-4">{job.worker_id ?? "Unassigned"}</td>
+                  <td className="py-2 pr-4">{formatDate(job.queued_at)}</td>
+                  <td className="py-2 pr-4">{job.started_at ? formatDate(job.started_at) : "Not started"}</td>
+                  <td className="py-2 pr-4">{job.completed_at ? formatDate(job.completed_at) : "Not finished"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -570,11 +700,7 @@ function WorkflowRunPanel({ run }: { run: CampaignRunResponse }) {
                 <div key={`${accountResult.account}-${step.action_type}-${index}`} className="flex items-center justify-between gap-4 text-sm">
                   <span>{step.action_type}</span>
                   <span className={cn(step.success ? "text-emerald-700" : "text-red-700")}>
-                    {step.success
-                      ? step.detail
-                        ? `Success · ${step.detail}`
-                        : "Success"
-                      : formatReason(step.reason ?? "failed")}
+                    {formatStepResult(step)}
                   </span>
                 </div>
               ))}
@@ -651,6 +777,7 @@ function StepConfigFields({
     SCROLL: "",
     OPEN_POST: "Randomly opens one visible post.",
     BACK: "Returns to the previous page.",
+    COMMENT: "Uses campaign comment text.",
     UPVOTE: "Uses campaign target URL."
   };
   return (
@@ -674,6 +801,14 @@ function defaultConfig(actionType: WorkflowActionType, targetUrl: string): Recor
     return { strategy: "random" };
   }
   return {};
+}
+
+function hasCommentStep(steps: WorkflowInputStep[]) {
+  return steps.some((step) => step.action_type === "COMMENT");
+}
+
+function isCommentTextSaved(savedValue: string, currentValue: string) {
+  return savedValue.trim() === currentValue.trim();
 }
 
 function scheduleInput({
@@ -738,6 +873,17 @@ function formatDate(value: string) {
   return new Date(value).toLocaleString();
 }
 
+function jobStatusClass(statusValue: string) {
+  const classes: Record<string, string> = {
+    QUEUED: "bg-gray-100 text-gray-700",
+    RUNNING: "bg-blue-50 text-blue-700",
+    SUCCESS: "bg-emerald-50 text-emerald-700",
+    FAILED: "bg-red-50 text-red-700",
+    CANCELLED: "bg-gray-100 text-gray-700"
+  };
+  return classes[statusValue] ?? "bg-gray-100 text-gray-700";
+}
+
 function StatePanel({ title, tone = "default" }: { title: string; tone?: "default" | "error" }) {
   return (
     <div
@@ -761,7 +907,26 @@ function formatReason(reason: string) {
     navigation_failed: "Navigation Failed",
     account_not_found: "Account Not Found",
     post_not_found: "Post Not Found",
-    browser_unavailable: "Browser Unavailable"
+    browser_unavailable: "Browser Unavailable",
+    comment_text_required: "Comment Text Required",
+    comment_editor_not_found: "Comment Editor Not Found",
+    comment_editor_failed: "Comment Editor Failed",
+    submit_button_not_found: "Submit Button Not Found",
+    submit_failed: "Submit Failed"
   };
   return labels[reason] ?? reason;
+}
+
+function formatStepResult(step: CampaignRunResponse["results"][number]["steps"][number]) {
+  if (!step.success) {
+    return formatReason(step.reason ?? "failed");
+  }
+  const parts = ["Success"];
+  if (step.verified !== null && step.verified !== undefined) {
+    parts.push(step.verified ? "Verified" : "Unverified");
+  }
+  if (step.detail) {
+    parts.push(step.detail);
+  }
+  return parts.join(" · ");
 }

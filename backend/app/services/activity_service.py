@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.account import Account
 from app.models.activity import Activity
 from app.models.enums import ActivityStatus, ActivityType
-from app.providers.manager import provider_manager
+from app.core.platforms import provider_home_url
 from app.repositories.account_repository import AccountRepository
 from app.repositories.activity_repository import ActivityRepository
 
@@ -55,12 +55,11 @@ class ActivityService:
     async def create_test_activity(self, account_id: UUID | None = None) -> Activity:
         """Create a synthetic browse activity for UI verification."""
         account = await self._get_account_for_activity(account_id)
-        provider = provider_manager.get_provider(account.platform)
         return await self.record(
             account=account,
             activity_type=ActivityType.BROWSE,
             status=ActivityStatus.SUCCESS,
-            target_url=provider.home_url,
+            target_url=provider_home_url(account.platform),
             title="Generated test activity",
             metadata={"source": "test_button"},
         )

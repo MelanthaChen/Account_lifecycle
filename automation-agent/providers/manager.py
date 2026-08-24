@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from app.models.enums import Platform
-from app.providers.base import Provider
-from app.providers.reddit.provider import RedditProvider
+from providers.base import Provider
+from providers.reddit.provider import RedditProvider
+from runtime_types import Platform
 
 
 class ProviderManager:

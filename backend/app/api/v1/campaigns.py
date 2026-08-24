@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_session
-from app.schemas.campaign import CampaignCreate, CampaignRead
+from app.schemas.campaign import CampaignCreate, CampaignRead, CampaignUpdate
 from app.schemas.workflow import WorkflowRead, WorkflowRunResponse, WorkflowWrite
 from app.services.campaign_service import CampaignService
 from app.services.workflow_service import WorkflowService
@@ -41,6 +41,15 @@ async def get_campaign(
     campaign_service: CampaignService = Depends(service),
 ) -> CampaignRead:
     return await campaign_service.get_campaign(campaign_id)
+
+
+@router.patch("/{campaign_id}", response_model=CampaignRead)
+async def update_campaign(
+    campaign_id: UUID,
+    payload: CampaignUpdate,
+    campaign_service: CampaignService = Depends(service),
+) -> CampaignRead:
+    return await campaign_service.update_campaign(campaign_id, payload)
 
 
 @router.delete("/{campaign_id}", status_code=status.HTTP_204_NO_CONTENT)

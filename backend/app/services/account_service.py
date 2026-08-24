@@ -1,4 +1,3 @@
-from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -6,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
 from app.models.enums import ActivityType
-from app.providers.manager import provider_manager
+from app.core.platforms import provider_display_name, provider_home_url
 from app.repositories.account_repository import AccountRepository
 from app.schemas.account import AccountCreate, AccountUpdate
 from app.services.activity_service import ActivityService
@@ -65,39 +64,15 @@ class AccountService:
         await self.session.commit()
 
     async def sync_profile(self, account_id: UUID) -> Account:
-        """Scrape the provider profile through the stored browser profile and persist fields."""
+        """Reject direct browser-backed profile sync from the backend runtime."""
         account = await self.get_account(account_id)
-        provider = provider_manager.get_provider(account.platform)
 
         activity = await self.activity_service.record_start(
             account=account,
             activity_type=ActivityType.SYNC_PROFILE,
-            target_url=f"{provider.home_url.rstrip('/')}/user/{account.username}/",
-            title=f"Sync {provider.display_name} profile",
+            target_url=f"{provider_home_url(account.platform).rstrip('/')}/user/{account.username}/",
+            title=f"Sync {provider_display_name(account.platform)} profile",
         )
-        try:
-            profile = await provider.sync_profile(account)
-        except Exception as exc:
-            await self.activity_service.record_failure(activity, exc)
-            raise
-        account.display_name = profile.display_name
-        account.reddit_username = profile.provider_username
-        account.avatar_url = profile.avatar_url
-        account.karma_post = profile.karma_post
-        account.karma_comment = profile.karma_comment
-        account.cake_day = profile.cake_day
-        account.verified_email = profile.verified_email
-        account.is_nsfw = profile.is_nsfw
-        account.is_moderator = profile.is_moderator
-        account.is_gold = profile.is_gold
-        account.last_profile_sync = datetime.now(UTC)
-        await self.activity_service.record_success(
-            activity,
-            metadata={
-                "provider_username": profile.provider_username,
-                "display_name": profile.display_name,
-            },
-        )
-        await self.session.commit()
-        await self.session.refresh(account)
-        return account
+        error = RuntimeError("Profile sync browser runtime is owned by the automation agent")
+        await self.activity_service.record_failure(activity, error)
+        raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, str(error))

@@ -62,6 +62,7 @@ class WorkflowActionType(StrEnum):
     SCROLL = "SCROLL"
     OPEN_POST = "OPEN_POST"
     BACK = "BACK"
+    COMMENT = "COMMENT"
     UPVOTE = "UPVOTE"
 
 
@@ -97,3 +98,11 @@ class RecommendationType(StrEnum):
     SYNC_PROFILE = "SYNC_PROFILE"
     REFRESH_SESSION = "REFRESH_SESSION"
     NO_ACTION = "NO_ACTION"
+
+
+class AutomationJobStatus(StrEnum):
+    QUEUED = "QUEUED"
+    RUNNING = "RUNNING"
+    SUCCESS = "SUCCESS"
+    FAILED = "FAILED"
+    CANCELLED = "CANCELLED"

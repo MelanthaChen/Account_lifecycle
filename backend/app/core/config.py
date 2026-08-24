@@ -11,7 +11,9 @@ class Settings(BaseSettings):
     database_url: str = Field(
         default="postgresql+asyncpg://account:account@localhost:55432/account_intelligence"
     )
-    cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"])
+    cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5174"])
+    automation_workers: dict[str, str] = Field(default_factory=dict)
+    worker_offline_seconds: int = 90
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

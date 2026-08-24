@@ -5,11 +5,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.campaign import Campaign
 from app.models.enums import CampaignActionType, CampaignStatus, WorkflowActionType
-from app.providers.manager import provider_manager
+from app.core.platforms import supported_workflow_actions
 from app.repositories.account_repository import AccountRepository
 from app.repositories.campaign_repository import CampaignRepository
 from app.repositories.workflow_repository import WorkflowRepository
-from app.schemas.campaign import CampaignCreate, CampaignRead
+from app.schemas.campaign import CampaignCreate, CampaignRead, CampaignUpdate
 from app.schemas.workflow import WorkflowRunResponse, WorkflowStepInput
 from app.services.workflow_service import WorkflowService
 
@@ -35,10 +35,9 @@ class CampaignService:
     async def create_campaign(self, payload: CampaignCreate) -> CampaignRead:
         """Create an UPVOTE campaign and its default OPEN_URL plus UPVOTE workflow."""
         await self._validate_accounts(payload.account_ids)
-        provider = provider_manager.get_provider(payload.platform)
         if payload.action_type != CampaignActionType.UPVOTE:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "Only UPVOTE campaigns are supported")
-        if WorkflowActionType.UPVOTE not in provider.supported_actions():
+        if WorkflowActionType.UPVOTE not in supported_workflow_actions(payload.platform):
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "UPVOTE is not supported for this platform")
 
         campaign = Campaign(
@@ -47,6 +46,7 @@ class CampaignService:
             platform=payload.platform,
             action_type=payload.action_type,
             target_url=str(payload.target_url),
+            comment_text=payload.comment_text,
             status=CampaignStatus.READY,
         )
         await self.campaigns.create(campaign)
@@ -70,6 +70,14 @@ class CampaignService:
         campaign = await self._get_campaign_model(campaign_id)
         await self.campaigns.delete(campaign)
         await self.session.commit()
+
+    async def update_campaign(self, campaign_id: UUID, payload: CampaignUpdate) -> CampaignRead:
+        """Update editable campaign configuration fields."""
+        campaign = await self._get_campaign_model(campaign_id)
+        campaign.comment_text = payload.comment_text
+        await self.session.commit()
+        await self.session.refresh(campaign)
+        return await self._read(campaign)
 
     async def run_campaign(self, campaign_id: UUID) -> WorkflowRunResponse:
         """Run a campaign through the WorkflowService."""
@@ -99,6 +107,7 @@ class CampaignService:
             platform=campaign.platform,
             action_type=campaign.action_type,
             target_url=campaign.target_url,
+            comment_text=campaign.comment_text,
             status=campaign.status,
             account_ids=account_ids,
             created_at=campaign.created_at,

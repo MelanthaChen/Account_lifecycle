@@ -1,6 +1,6 @@
 # Account Lifecycle Platform
 
-Account Lifecycle Platform is a full-stack control center for managing Reddit accounts, persistent browser sessions, reusable behavior workflows, campaigns, health scoring, recommendations, activity history, and scheduled campaign execution.
+Account Lifecycle Platform is a full-stack control center for managing Reddit accounts, reusable behavior workflows, campaigns, health scoring, recommendations, activity history, scheduled campaign execution, and local browser automation workers.
 
 This is not a demo scaffold. The current implementation is a working Reddit-focused platform with a provider abstraction layer so future platforms can be added behind stable service boundaries.
 
@@ -16,7 +16,7 @@ The platform helps an operator answer:
 - Which accounts need attention?
 - Which campaign runs are scheduled next?
 
-The system uses manual login for Reddit accounts. Each account receives its own persistent Playwright Chromium profile and storage state under `storage/reddit/<account>/`.
+The backend is intentionally browser-free. Browser automation runs in the standalone `automation-agent/` process, which polls queued jobs from the backend and owns Playwright, provider implementations, persistent browser profiles, and workflow execution.
 
 ## Architecture Diagram
 
@@ -29,11 +29,15 @@ React / Vite frontend
 FastAPI backend
   routers -> services -> repositories -> PostgreSQL
               |
-              +-> ProviderManager -> RedditProvider
-              |       |
-              |       +-> session/profile/actions/browser behavior
+              +-> automation_jobs queue
               |
-              +-> APScheduler -> CampaignService -> WorkflowService
+              +-> APScheduler -> CampaignService -> WorkflowService -> enqueue jobs
+
+Local Automation Agent
+  polling loop -> backend jobs API
+              -> ProviderManager -> RedditProvider
+              -> Playwright persistent profile
+              -> provider actions
 ```
 
 Runtime browser state:
@@ -54,12 +58,14 @@ storage/
 
 - Account CRUD for Reddit accounts.
 - Account detail workspace with Overview, Session, Activity, Publishing, Analytics, and Settings tabs.
-- Persistent Playwright browser profiles per account.
-- Manual Reddit login with durable `storage_state.json`.
-- Session create, finish, validate, refresh, open browser, open home, and delete.
-- Reddit profile synchronization.
+- PostgreSQL-backed automation job queue.
+- Standalone Automation Agent for Playwright execution.
+- Persistent Playwright browser profiles per account, owned by the agent.
+- Manual Reddit login/session runtime has moved out of the backend.
+- Browser session APIs remain present, but backend no longer launches browsers directly.
+- Reddit profile synchronization API remains present, but browser scraping runtime belongs in the agent.
 - Activity Engine audit log.
-- Upvote Engine for sequential multi-account Reddit upvote execution.
+- Upvote and Comment workflow actions executed by the local Automation Agent.
 - Campaign Engine for reusable execution plans.
 - Workflow Engine with ordered steps.
 - Behavior Engine actions: `WAIT`, `SCROLL`, `OPEN_POST`, `BACK`.
@@ -68,7 +74,7 @@ storage/
 - Recommendation Engine with rule-based next actions.
 - Scheduler Engine using APScheduler.
 - Dashboard 2.0 control center.
-- Provider abstraction with Reddit as the first provider.
+- Provider abstraction with Reddit as the first provider, owned by the Automation Agent.
 
 ## Screenshots
 
@@ -119,12 +125,20 @@ cd backend
 python3.12 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
-python -m playwright install chromium
 alembic upgrade head
-uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8001
 ```
 
-In a second terminal, start the frontend:
+In a second terminal, start the automation agent:
+
+```bash
+cd automation-agent
+uv sync --extra dev
+uv run playwright install chromium
+uv run python main.py
+```
+
+In a third terminal, start the frontend:
 
 ```bash
 cd frontend
@@ -134,9 +148,9 @@ npm run dev
 
 Open:
 
-- Platform: `http://localhost:5173`
-- Backend health: `http://127.0.0.1:8000/health`
-- API docs: `http://127.0.0.1:8000/docs`
+- Platform: `http://localhost:5174`
+- Backend health: `http://127.0.0.1:8001/health`
+- API docs: `http://127.0.0.1:8001/docs`
 
 ## Installation
 
@@ -159,11 +173,110 @@ uv sync --extra dev
 source .venv/bin/activate
 ```
 
-Install Playwright browser binaries:
+The backend does not install or import Playwright.
+
+### Automation Agent
+
+The agent is a separate Python project configured by `automation-agent/pyproject.toml`.
 
 ```bash
-python -m playwright install chromium
+cd automation-agent
+uv sync --extra dev
+uv run playwright install chromium
+uv run python main.py
 ```
+
+Agent settings live in `automation-agent/agent.yaml`.
+
+## Remote Agent Communication
+
+Production deployment uses the backend as a public job broker and the local agent as the private browser runtime.
+
+```text
+Vercel frontend
+  |
+  v
+Render backend
+  |
+  v
+PostgreSQL automation_jobs
+  ^
+  |
+Local Automation Agent
+  |
+  v
+Playwright + local browser profiles
+```
+
+Backend worker authentication uses request headers:
+
+```text
+X-Worker-Id: local-agent-1
+X-Worker-Secret: <secret>
+```
+
+Configure allowed workers on Render:
+
+```env
+AUTOMATION_WORKERS={"local-agent-1":"replace-with-strong-secret"}
+WORKER_OFFLINE_SECONDS=90
+```
+
+The secret is never stored in the database and is never returned by API responses.
+
+### Deploy Backend To Render
+
+Create a Render Web Service from the repository and set:
+
+```env
+APP_NAME=Account Intelligence Platform
+ENVIRONMENT=production
+API_V1_PREFIX=/api/v1
+DATABASE_URL=<Render PostgreSQL asyncpg URL>
+CORS_ORIGINS=["https://your-vercel-app.vercel.app"]
+AUTOMATION_WORKERS={"local-agent-1":"replace-with-strong-secret"}
+WORKER_OFFLINE_SECONDS=90
+```
+
+Run migrations against the Render database:
+
+```bash
+cd backend
+alembic upgrade head
+```
+
+### Deploy Frontend To Vercel
+
+Set the frontend environment variable:
+
+```env
+VITE_API_BASE_URL=https://your-render-backend.onrender.com/api/v1
+```
+
+### Run Agent Locally
+
+```bash
+cd automation-agent
+cp agent.yaml.example agent.yaml
+```
+
+Edit:
+
+```yaml
+backend_url: https://your-render-backend.onrender.com/api/v1
+worker_id: local-agent-1
+worker_secret: replace-with-strong-secret
+```
+
+Then run:
+
+```bash
+uv sync --extra dev
+uv run playwright install chromium
+uv run python main.py
+```
+
+The agent posts a heartbeat every 30 seconds and automatically reconnects with exponential backoff if Render is asleep or temporarily unreachable.
 
 ### Frontend
 
@@ -185,10 +298,12 @@ APP_NAME="Account Intelligence Platform"
 ENVIRONMENT=local
 API_V1_PREFIX=/api/v1
 DATABASE_URL=postgresql+asyncpg://account:account@localhost:55432/account_intelligence
-CORS_ORIGINS=["http://localhost:5173","http://127.0.0.1:5173"]
+CORS_ORIGINS=["http://localhost:5174","http://127.0.0.1:5174"]
+AUTOMATION_WORKERS={"local-agent-1":"change-me"}
+WORKER_OFFLINE_SECONDS=90
 ```
 
-The Vite dev server proxies `/api` to `http://127.0.0.1:8000`. In local development, the frontend normally does not need an `.env` file.
+The Vite dev server proxies `/api` to `http://127.0.0.1:8001`. In local development, the frontend normally does not need an `.env` file.
 
 ## Project Structure
 
@@ -199,12 +314,19 @@ backend/
     core/               settings
     db/                 async SQLAlchemy session/base
     models/             ORM models and enums
-    providers/          provider abstraction and Reddit provider
     repositories/       database access
     schemas/            Pydantic API contracts
     services/           application orchestration
     tasks/              reserved task namespace
   alembic/              migrations
+
+automation-agent/
+  main.py               local worker entrypoint
+  agent.yaml            worker/backend/profile configuration
+  providers/            ProviderManager and provider implementations
+  browser/              browser runtime manager
+  browser_sessions/     browser session protocols/results
+  runtime_types.py      lightweight agent runtime enums/protocols
 
 frontend/
   src/
@@ -233,7 +355,7 @@ Then:
 cd backend
 source .venv/bin/activate
 alembic upgrade head
-uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8001
 ```
 
 The backend starts APScheduler during FastAPI startup and reloads enabled campaign schedules from the database.
@@ -245,9 +367,9 @@ cd frontend
 npm run dev
 ```
 
-The app runs at `http://localhost:5173`.
+The app runs at `http://localhost:5174`.
 
-Important: the Vite proxy is intentionally pinned to `http://127.0.0.1:8000` to avoid stale shell environment variables sending `/api` traffic to an old backend process.
+Important: the Vite proxy is intentionally pinned to `http://127.0.0.1:8001` to avoid stale shell environment variables sending `/api` traffic to an old backend process.
 
 ## Running Migrations
 
@@ -284,7 +406,7 @@ On macOS this usually installs only browser binaries.
 
 ## Creating Accounts
 
-1. Open `http://localhost:5173`.
+1. Open `http://localhost:5174`.
 2. Go to Accounts.
 3. Click Add Account.
 4. Use `reddit` as the platform.

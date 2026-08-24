@@ -5,9 +5,9 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from app.models.account import Account
-from app.providers.base import ProviderActionResult
-from app.providers.reddit.session import RedditSessionProvider
+from providers.base import ProviderActionResult
+from providers.reddit.session import RedditSessionProvider
+from runtime_types import AccountLike
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ class RedditActions:
     def __init__(self, session_provider: RedditSessionProvider) -> None:
         self.session_provider = session_provider
 
-    async def upvote(self, account: Account, target_url: str) -> ProviderActionResult:
+    async def upvote(self, account: AccountLike, target_url: str) -> ProviderActionResult:
         """Run one Reddit upvote attempt for one account."""
         state_path = self._get_state_path(account)
         if not state_path.exists():
@@ -106,7 +106,7 @@ class RedditActions:
             logger.info("Closing browser...")
             await self.session_provider.close_session(active_session)
 
-    def _get_state_path(self, account: Account) -> Path:
+    def _get_state_path(self, account: AccountLike) -> Path:
         if account.session_path:
             return Path(account.session_path)
         return self.session_provider.get_storage_directory(account) / "storage_state.json"

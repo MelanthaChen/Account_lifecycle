@@ -10,7 +10,6 @@ from app.models.activity import Activity
 from app.models.campaign import Campaign, CampaignAccount
 from app.models.enums import ActivityStatus, CampaignStatus, HealthStatus, RiskLevel
 from app.models.health import AccountHealth
-from app.providers.manager import provider_manager
 from app.repositories.account_repository import AccountRepository
 from app.repositories.health_repository import HealthRepository
 
@@ -87,15 +86,14 @@ class HealthService:
             (now - last_activity_at).total_seconds() / 3600 if last_activity_at else None
         )
         account_age_days = (now - account.created_at).days if account.created_at else None
-        provider_signals = await provider_manager.get_provider(account.platform).health_check(account)
         return {
             "session_valid": account.session_status == "valid",
             "profile_synced": account.last_profile_sync is not None,
-            "email_verified": provider_signals.get("email_verified") is True,
-            "profile_username": bool(provider_signals.get("profile_username")),
+            "email_verified": account.verified_email is True,
+            "profile_username": bool(account.reddit_username),
             "account_age_days": account_age_days,
-            "post_karma": provider_signals.get("post_karma"),
-            "comment_karma": provider_signals.get("comment_karma"),
+            "post_karma": account.karma_post,
+            "comment_karma": account.karma_comment,
             "last_activity_hours": last_activity_hours,
             "workflow_success_rate": workflow_success_rate,
         }

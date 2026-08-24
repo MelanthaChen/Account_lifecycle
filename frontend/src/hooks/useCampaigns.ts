@@ -8,9 +8,10 @@ import {
   listCampaigns,
   replaceCampaignWorkflow,
   runCampaign,
-  runCampaignWorkflow
+  runCampaignWorkflow,
+  updateCampaign
 } from "../api/campaigns";
-import type { WorkflowInput } from "../types/campaign";
+import type { CampaignUpdateInput, WorkflowInput } from "../types/campaign";
 
 export function useCampaigns() {
   return useQuery({ queryKey: ["campaigns"], queryFn: listCampaigns });
@@ -37,6 +38,17 @@ export function useDeleteCampaign() {
   return useMutation({
     mutationFn: deleteCampaign,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["campaigns"] })
+  });
+}
+
+export function useUpdateCampaign(campaignId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CampaignUpdateInput) => updateCampaign(campaignId, input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+      queryClient.invalidateQueries({ queryKey: ["campaigns", campaignId] });
+    }
   });
 }
 

@@ -1,0 +1,8 @@
+worker_id: local-agent-1
+worker_secret: change-me
+backend_url: http://127.0.0.1:8001/api/v1
+poll_interval: 5
+heartbeat_interval: 30
+profile_root: ../storage
+headless: false
+provider: reddit

@@ -1,0 +1,8 @@
+worker_id: local-agent-1
+worker_secret: replace-with-render-worker-secret
+backend_url: https://your-render-backend.onrender.com/api/v1
+poll_interval: 5
+heartbeat_interval: 30
+profile_root: ../storage
+headless: false
+provider: reddit

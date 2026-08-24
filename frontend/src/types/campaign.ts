@@ -1,6 +1,6 @@
 export type CampaignStatus = "Draft" | "Ready" | "Running" | "Completed" | "Failed";
 export type CampaignActionType = "UPVOTE";
-export type WorkflowActionType = "OPEN_URL" | "WAIT" | "SCROLL" | "OPEN_POST" | "BACK" | "UPVOTE";
+export type WorkflowActionType = "OPEN_URL" | "WAIT" | "SCROLL" | "OPEN_POST" | "BACK" | "COMMENT" | "UPVOTE";
 
 export interface Campaign {
   id: string;
@@ -9,6 +9,7 @@ export interface Campaign {
   platform: "reddit";
   action_type: CampaignActionType;
   target_url: string;
+  comment_text: string | null;
   status: CampaignStatus;
   account_ids: string[];
   created_at: string;
@@ -21,7 +22,12 @@ export interface CampaignInput {
   platform: "reddit";
   action_type: CampaignActionType;
   target_url: string;
+  comment_text?: string | null;
   account_ids: string[];
+}
+
+export interface CampaignUpdateInput {
+  comment_text?: string | null;
 }
 
 export interface CampaignRunResult {
@@ -31,6 +37,7 @@ export interface CampaignRunResult {
   success: boolean;
   reason: string | null;
   detail: string | null;
+  verified?: boolean | null;
 }
 
 export interface WorkflowAccountResult {

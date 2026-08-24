@@ -12,6 +12,7 @@ class CampaignBase(BaseModel):
     platform: Platform = Platform.REDDIT
     action_type: CampaignActionType = CampaignActionType.UPVOTE
     target_url: HttpUrl
+    comment_text: str | None = None
 
     @field_validator("target_url")
     @classmethod
@@ -26,6 +27,10 @@ class CampaignCreate(CampaignBase):
     account_ids: list[UUID] = Field(min_length=1)
 
 
+class CampaignUpdate(BaseModel):
+    comment_text: str | None = None
+
+
 class CampaignRead(BaseModel):
     id: UUID
     name: str
@@ -33,6 +38,7 @@ class CampaignRead(BaseModel):
     platform: Platform
     action_type: CampaignActionType
     target_url: str
+    comment_text: str | None = None
     status: CampaignStatus
     account_ids: list[UUID]
     created_at: datetime

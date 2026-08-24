@@ -1,5 +1,12 @@
 import { api } from "./client";
-import type { Campaign, CampaignInput, CampaignRunResponse, Workflow, WorkflowInput } from "../types/campaign";
+import type {
+  Campaign,
+  CampaignInput,
+  CampaignRunResponse,
+  CampaignUpdateInput,
+  Workflow,
+  WorkflowInput
+} from "../types/campaign";
 
 export async function listCampaigns(): Promise<Campaign[]> {
   const response = await api.get<Campaign[]>("/campaigns");
@@ -13,6 +20,11 @@ export async function getCampaign(campaignId: string): Promise<Campaign> {
 
 export async function createCampaign(input: CampaignInput): Promise<Campaign> {
   const response = await api.post<Campaign>("/campaigns", input);
+  return response.data;
+}
+
+export async function updateCampaign(campaignId: string, input: CampaignUpdateInput): Promise<Campaign> {
+  const response = await api.patch<Campaign>(`/campaigns/${campaignId}`, input);
   return response.data;
 }
 

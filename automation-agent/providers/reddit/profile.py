@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import re
+from dataclasses import dataclass
 
-from app.models.account import Account
-from app.providers.base import ProviderProfileData
-from app.providers.reddit.session import RedditSessionProvider
+from providers.base import ProviderProfileData
+from providers.reddit.session import RedditSessionProvider
+from runtime_types import AccountLike
 
 
 @dataclass(frozen=True)
@@ -28,7 +28,7 @@ class RedditProfileService:
     def __init__(self, session_provider: RedditSessionProvider) -> None:
         self.session_provider = session_provider
 
-    async def sync_profile(self, account: Account) -> RedditProfileData:
+    async def sync_profile(self, account: AccountLike) -> RedditProfileData:
         """Open the account profile page and extract available profile fields."""
         active_session = await self.session_provider.open_persistent_context(
             account,
@@ -44,7 +44,7 @@ class RedditProfileService:
         finally:
             await self.session_provider.close_session(active_session)
 
-    async def _extract_profile(self, page, account: Account) -> RedditProfileData:
+    async def _extract_profile(self, page, account: AccountLike) -> RedditProfileData:
         snapshot = await page.evaluate(
             """
             () => {
@@ -86,7 +86,7 @@ class RedditProfileService:
         )
 
     @staticmethod
-    def _extract_username(text: str, account: Account) -> str:
+    def _extract_username(text: str, account: AccountLike) -> str:
         match = re.search(r"u/([A-Za-z0-9_-]+)", text)
         return match.group(1) if match else account.username
 

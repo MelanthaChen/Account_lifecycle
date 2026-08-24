@@ -6,15 +6,18 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Textarea } from "../components/ui/textarea";
 import { useAccounts } from "../hooks/useAccounts";
+import { useAutomationJobs } from "../hooks/useAutomationJobs";
 import { useCampaigns, useCreateCampaign, useDeleteCampaign, useRunCampaign } from "../hooks/useCampaigns";
 import { cn } from "../lib/utils";
 import { useToast } from "../store/useToast";
 import type { Account } from "../types/account";
+import type { AutomationJob } from "../types/automationJob";
 import type { Campaign, CampaignRunResponse, CampaignRunResult, CampaignStatus } from "../types/campaign";
 
 export function CampaignsPage() {
   const campaigns = useCampaigns();
   const accounts = useAccounts();
+  const automationJobs = useAutomationJobs({ limit: 100 });
   const createCampaign = useCreateCampaign();
   const deleteCampaign = useDeleteCampaign();
   const runCampaign = useRunCampaign();
@@ -189,6 +192,7 @@ export function CampaignsPage() {
               key={campaign.id}
               campaign={campaign}
               accounts={activeAccounts}
+              jobs={(automationJobs.data ?? []).filter((job) => job.campaign_id === campaign.id)}
               isRunning={runCampaign.isPending}
               isDeleting={deleteCampaign.isPending}
               onRun={() => runSelectedCampaign(campaign)}
@@ -264,6 +268,7 @@ function AccountSelector({
 function CampaignCard({
   campaign,
   accounts,
+  jobs,
   isRunning,
   isDeleting,
   onRun,
@@ -271,6 +276,7 @@ function CampaignCard({
 }: {
   campaign: Campaign;
   accounts: Account[];
+  jobs: AutomationJob[];
   isRunning: boolean;
   isDeleting: boolean;
   onRun: () => void;
@@ -294,6 +300,7 @@ function CampaignCard({
           <div className="text-xs text-muted-foreground">
             {campaign.action_type} · {selectedNames || `${campaign.account_ids.length} account(s)`}
           </div>
+          <JobSummary jobs={jobs} />
         </div>
         <div className="flex flex-wrap gap-2">
           <Button type="button" onClick={onRun} disabled={isRunning}>
@@ -314,6 +321,24 @@ function CampaignCard({
         </div>
       </div>
     </article>
+  );
+}
+
+function JobSummary({ jobs }: { jobs: AutomationJob[] }) {
+  if (jobs.length === 0) {
+    return <div className="text-xs text-muted-foreground">No queued automation jobs.</div>;
+  }
+  const queued = jobs.filter((job) => job.status === "QUEUED").length;
+  const running = jobs.filter((job) => job.status === "RUNNING").length;
+  const completed = jobs.filter((job) => job.status === "SUCCESS").length;
+  const workers = Array.from(new Set(jobs.map((job) => job.worker_id).filter(Boolean)));
+  return (
+    <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+      <span>Queued {queued}</span>
+      <span>Running {running}</span>
+      <span>Completed {completed}</span>
+      <span>Worker {workers.length ? workers.join(", ") : "Unassigned"}</span>
+    </div>
   );
 }
 
@@ -344,11 +369,7 @@ function RunResultPanel({ run }: { run: CampaignRunResponse }) {
                 <div key={runStepKey(step, index)} className="flex items-center justify-between gap-4">
                   <span>{step.action_type}</span>
                   <span className={step.success ? "text-emerald-700" : "text-red-700"}>
-                    {step.success
-                      ? step.detail
-                        ? `Success · ${step.detail}`
-                        : "Success"
-                      : formatReason(step.reason ?? "failed")}
+                    {formatStepResult(step)}
                   </span>
                 </div>
               ))}
@@ -387,7 +408,26 @@ function formatReason(reason: string) {
     navigation_failed: "Navigation Failed",
     account_not_found: "Account Not Found",
     post_not_found: "Post Not Found",
-    browser_unavailable: "Browser Unavailable"
+    browser_unavailable: "Browser Unavailable",
+    comment_text_required: "Comment Text Required",
+    comment_editor_not_found: "Comment Editor Not Found",
+    comment_editor_failed: "Comment Editor Failed",
+    submit_button_not_found: "Submit Button Not Found",
+    submit_failed: "Submit Failed"
   };
   return labels[reason] ?? reason;
+}
+
+function formatStepResult(step: CampaignRunResult) {
+  if (!step.success) {
+    return formatReason(step.reason ?? "failed");
+  }
+  const parts = ["Success"];
+  if (step.verified !== null && step.verified !== undefined) {
+    parts.push(step.verified ? "Verified" : "Unverified");
+  }
+  if (step.detail) {
+    parts.push(step.detail);
+  }
+  return parts.join(" · ");
 }

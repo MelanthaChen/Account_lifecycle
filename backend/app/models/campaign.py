@@ -35,6 +35,7 @@ class Campaign(Base):
         nullable=False,
     )
     target_url: Mapped[str] = mapped_column(String(1000), nullable=False)
+    comment_text: Mapped[str | None] = mapped_column(Text)
     status: Mapped[CampaignStatus] = mapped_column(
         Enum(
             CampaignStatus,

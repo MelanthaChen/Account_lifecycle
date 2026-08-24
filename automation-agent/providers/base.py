@@ -4,9 +4,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
-from app.models.account import Account
-from app.models.enums import Platform, WorkflowActionType
-from app.services.browser_sessions.base import BrowserSessionResult
+from browser_sessions.base import BrowserSessionResult
+from runtime_types import AccountLike, Platform, WorkflowActionType
 
 
 @dataclass(frozen=True)
@@ -32,6 +31,7 @@ class ProviderActionResult:
     success: bool = False
     reason: str | None = None
     detail: str | None = None
+    metadata: dict[str, Any] | None = None
 
 
 class Provider(Protocol):
@@ -42,56 +42,56 @@ class Provider(Protocol):
     home_url: str
     login_url: str
 
-    def get_storage_directory(self, account: Account) -> Path:
+    def get_storage_directory(self, account: AccountLike) -> Path:
         ...
 
-    def get_profile_directory(self, account: Account) -> Path:
+    def get_profile_directory(self, account: AccountLike) -> Path:
         ...
 
-    async def create_session(self, account: Account) -> BrowserSessionResult:
+    async def create_session(self, account: AccountLike) -> BrowserSessionResult:
         ...
 
     async def finish_session(
         self,
-        account: Account,
+        account: AccountLike,
         active_session: object | None = None,
     ) -> BrowserSessionResult:
         ...
 
-    async def validate_session(self, account: Account) -> BrowserSessionResult:
+    async def validate_session(self, account: AccountLike) -> BrowserSessionResult:
         ...
 
-    async def refresh_session(self, account: Account) -> BrowserSessionResult:
+    async def refresh_session(self, account: AccountLike) -> BrowserSessionResult:
         ...
 
-    async def delete_session(self, account: Account) -> BrowserSessionResult:
+    async def delete_session(self, account: AccountLike) -> BrowserSessionResult:
         ...
 
-    async def logout(self, account: Account) -> BrowserSessionResult:
+    async def logout(self, account: AccountLike) -> BrowserSessionResult:
         ...
 
     async def close_session(self, active_session: object) -> None:
         ...
 
-    async def open_persistent_context(self, account: Account, *, headless: bool) -> object:
+    async def open_persistent_context(self, account: AccountLike, *, headless: bool) -> object:
         ...
 
-    async def open_browser(self, account: Account) -> BrowserSessionResult:
+    async def open_browser(self, account: AccountLike) -> BrowserSessionResult:
         ...
 
-    async def open_home(self, account: Account) -> BrowserSessionResult:
+    async def open_home(self, account: AccountLike) -> BrowserSessionResult:
         ...
 
-    async def open_url(self, account: Account, url: str) -> BrowserSessionResult:
+    async def open_url(self, account: AccountLike, url: str) -> BrowserSessionResult:
         ...
 
-    async def sync_profile(self, account: Account) -> ProviderProfileData:
+    async def sync_profile(self, account: AccountLike) -> ProviderProfileData:
         ...
 
-    async def health_check(self, account: Account) -> dict[str, Any]:
+    async def health_check(self, account: AccountLike) -> dict[str, Any]:
         ...
 
-    async def start_behavior_session(self, account: Account) -> Any:
+    async def start_behavior_session(self, account: AccountLike) -> Any:
         ...
 
     async def close_behavior_session(self, session: Any | None) -> None:
@@ -99,7 +99,7 @@ class Provider(Protocol):
 
     async def execute_action(
         self,
-        account: Account,
+        account: AccountLike,
         action_type: WorkflowActionType,
         *,
         target_url: str | None = None,

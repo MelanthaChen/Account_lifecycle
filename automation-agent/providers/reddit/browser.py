@@ -1,18 +1,18 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
 import random
+from dataclasses import dataclass
 from typing import Any
 
-from app.models.account import Account
-from app.providers.base import ProviderActionResult
-from app.providers.reddit.session import RedditSessionProvider
+from providers.base import ProviderActionResult
+from providers.reddit.session import RedditSessionProvider
+from runtime_types import AccountLike
 
 
 @dataclass
 class BehaviorSession:
-    account: Account
+    account: AccountLike
     active_session: Any
     page: Any
 
@@ -30,7 +30,7 @@ class RedditBrowser:
     def __init__(self, session_provider: RedditSessionProvider) -> None:
         self.session_provider = session_provider
 
-    async def start(self, account: Account) -> BehaviorSession:
+    async def start(self, account: AccountLike) -> BehaviorSession:
         """Open a persistent browser context for behavior workflow steps."""
         active_session = await self.session_provider.open_persistent_context(
             account,
