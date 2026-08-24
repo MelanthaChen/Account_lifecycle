@@ -66,6 +66,16 @@ Connection URL:
 postgresql+asyncpg://account:account@localhost:55432/account_intelligence
 ```
 
+Hosted PostgreSQL providers such as Neon commonly provide URLs ending in
+`?sslmode=require`. Keep that URL unchanged:
+
+```text
+postgresql+asyncpg://<user>:<password>@<host>/<database>?sslmode=require
+```
+
+The backend and Alembic migration runner translate `sslmode=require` into
+asyncpg-compatible SSL connection arguments automatically.
+
 ## Backend Environment
 
 Create the backend environment file:

@@ -232,11 +232,13 @@ Create a Render Web Service from the repository and set:
 APP_NAME=Account Intelligence Platform
 ENVIRONMENT=production
 API_V1_PREFIX=/api/v1
-DATABASE_URL=<Render PostgreSQL asyncpg URL>
+DATABASE_URL=<Render or Neon PostgreSQL asyncpg URL>
 CORS_ORIGINS=["https://your-vercel-app.vercel.app"]
 AUTOMATION_WORKERS={"local-agent-1":"replace-with-strong-secret"}
 WORKER_OFFLINE_SECONDS=90
 ```
+
+Neon URLs such as `postgresql+asyncpg://.../neondb?sslmode=require` are supported as-is. The backend translates `sslmode=require` into asyncpg-compatible SSL settings at startup and during Alembic migrations.
 
 Run migrations against the Render database:
 
