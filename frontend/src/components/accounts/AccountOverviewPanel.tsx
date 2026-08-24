@@ -28,6 +28,7 @@ export function AccountOverviewPanel({ account }: { account: Account }) {
   const activeRecommendations = (recommendations.data ?? []).filter(
     (recommendation) => recommendation.status === "ACTIVE"
   );
+  const healthSignals = health.data?.signals ?? {};
 
   return (
     <section className="space-y-4">
@@ -99,8 +100,8 @@ export function AccountOverviewPanel({ account }: { account: Account }) {
         </div>
         {health.data ? (
           <div className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
-            <HealthSignal label="Session" value={health.data.signals.session_valid ? "Valid" : "Invalid"} />
-            <HealthSignal label="Profile" value={health.data.signals.profile_synced ? "Synced" : "Not synced"} />
+            <HealthSignal label="Session" value={healthSignals.session_valid ? "Valid" : "Invalid"} />
+            <HealthSignal label="Profile" value={healthSignals.profile_synced ? "Synced" : "Not synced"} />
             <HealthSignal label="Risk" value={health.data.risk_level} />
           </div>
         ) : null}

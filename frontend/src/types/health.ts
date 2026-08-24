@@ -19,7 +19,7 @@ export interface AccountHealth {
   health_score: number;
   health_status: HealthStatus;
   risk_level: RiskLevel;
-  signals: HealthSignals;
+  signals: HealthSignals | null;
   last_evaluated_at: string;
   created_at: string;
   updated_at: string;

@@ -87,8 +87,8 @@ export function HealthPage() {
                     <td className="px-3 py-3">{record.health_score}</td>
                     <td className="px-3 py-3"><HealthStatusBadge status={record.health_status} /></td>
                     <td className="px-3 py-3"><RiskBadge risk={record.risk_level} /></td>
-                    <td className="px-3 py-3">{record.signals.session_valid ? "Valid" : "Invalid"}</td>
-                    <td className="px-3 py-3">{record.signals.email_verified ? "Yes" : "No"}</td>
+                    <td className="px-3 py-3">{record.signals?.session_valid ? "Valid" : "Invalid"}</td>
+                    <td className="px-3 py-3">{record.signals?.email_verified ? "Yes" : "No"}</td>
                     <td className="px-3 py-3">{formatKarma(record.signals)}</td>
                     <td className="px-3 py-3">{new Date(record.last_evaluated_at).toLocaleString()}</td>
                   </tr>
@@ -110,7 +110,7 @@ export function HealthPage() {
 }
 
 function SignalsPanel({ record }: { record: AccountHealth; account?: Account }) {
-  const signals = signalRows(record.signals);
+  const signals = signalRows(record.signals ?? {});
   return (
     <div className="grid gap-2 md:grid-cols-2">
       {signals.map((signal) => (
@@ -148,8 +148,8 @@ function signalRows(signals: HealthSignals) {
   ];
 }
 
-function formatKarma(signals: HealthSignals) {
-  return `${signals.post_karma ?? 0} / ${signals.comment_karma ?? 0}`;
+function formatKarma(signals: HealthSignals | null) {
+  return `${signals?.post_karma ?? 0} / ${signals?.comment_karma ?? 0}`;
 }
 
 function StatePanel({ title, tone = "default" }: { title: string; tone?: "default" | "error" }) {
