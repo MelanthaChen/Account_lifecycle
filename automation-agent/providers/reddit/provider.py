@@ -433,7 +433,7 @@ class RedditProvider:
             logger.info("Comment page domcontentloaded wait timed out; continuing.")
         for selector in ["shreddit-post", 'a[href*="/comments/"]', "article", '[data-testid*="post" i]']:
             try:
-                await page.locator(selector).first().wait_for(state="attached", timeout=5_000)
+                await page.locator(selector).first.wait_for(state="attached", timeout=5_000)
                 return
             except Exception:
                 logger.info("Post readiness selector not found yet: %s", selector)
@@ -472,7 +472,7 @@ class RedditProvider:
             )
             if result["count"] == 0:
                 continue
-            locator = page.locator(selector).first()
+            locator = page.locator(selector).first
             if await self._is_editable(locator):
                 return locator
         return None
@@ -492,7 +492,7 @@ class RedditProvider:
             )
             if result["count"] == 0:
                 continue
-            locator = page.locator(selector).first()
+            locator = page.locator(selector).first
             try:
                 if await self._is_clickable(locator):
                     await locator.scroll_into_view_if_needed(timeout=5_000)
@@ -516,7 +516,7 @@ class RedditProvider:
             )
             if result["count"] == 0:
                 continue
-            locator = page.locator(selector).first()
+            locator = page.locator(selector).first
             if await self._is_clickable(locator):
                 return locator
         return None
@@ -556,7 +556,7 @@ class RedditProvider:
         except Exception:
             logger.info("Direct editor text verification failed; falling back to page text.")
         try:
-            await page.get_by_text(expected[:80], exact=False).first().wait_for(state="visible", timeout=3_000)
+            await page.get_by_text(expected[:80], exact=False).first.wait_for(state="visible", timeout=3_000)
             return True
         except Exception:
             return False
@@ -580,7 +580,7 @@ class RedditProvider:
     async def _wait_for_comment_candidate(page: Any) -> None:
         for selector in [*COMMENT_EDITOR_SELECTORS, *COMMENT_ENTRYPOINT_SELECTORS]:
             try:
-                await page.locator(selector).first().wait_for(state="attached", timeout=1_000)
+                await page.locator(selector).first.wait_for(state="attached", timeout=1_000)
                 return
             except Exception as exc:
                 logger.debug("Comment candidate wait skipped selector=%s error=%s", selector, exc)
@@ -609,7 +609,7 @@ class RedditProvider:
         if state["count"] == 0:
             return state
 
-        first = locator.first()
+        first = locator.first
         try:
             state["visible"] = await first.is_visible(timeout=750)
         except Exception as exc:
