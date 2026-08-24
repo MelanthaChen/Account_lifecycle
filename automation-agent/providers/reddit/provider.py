@@ -413,7 +413,7 @@ class RedditProvider:
         if "/login" in current_url or "login.reddit.com" in current_url:
             return True
         cookies = await context.cookies("https://www.reddit.com/")
-        return not any(cookie.get("name") in {"reddit_session", "token_v2"} for cookie in cookies)
+        return not any(cookie.get("name") == "reddit_session" and cookie.get("value") for cookie in cookies)
 
     @staticmethod
     async def _is_clickable(locator: Any) -> bool:

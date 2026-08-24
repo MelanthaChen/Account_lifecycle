@@ -296,6 +296,6 @@ class RedditSessionProvider:
     @staticmethod
     def _has_authenticated_cookie(cookies: list[dict]) -> bool:
         return any(
-            cookie.get("name") in {"reddit_session", "token_v2"}
+            cookie.get("name") == "reddit_session" and cookie.get("value")
             for cookie in cookies
         )

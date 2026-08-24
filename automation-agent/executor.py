@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import asyncio
+import contextlib
+import logging
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -12,6 +15,8 @@ from providers.manager import provider_manager
 from runtime_types import WorkflowActionType
 
 VALID_SESSION_STATUS = "valid"
+REDDIT_AUTH_COOKIE = "reddit_session"
+logger = logging.getLogger("automation-agent")
 
 
 class WorkflowExecutor:
@@ -125,6 +130,14 @@ class WorkflowExecutor:
             return self._session_job_result(job, result, success=False, reason="browser_unavailable")
 
         authenticated = await self._wait_for_login(active_session)
+        if not authenticated:
+            cancel_result = await browser_manager.cancel_session(account)
+            return self._session_job_result(
+                job,
+                cancel_result,
+                success=False,
+                reason="login_timeout_or_cancelled",
+            )
         finish_result = await browser_manager.finish_session(account)
         success = authenticated and finish_result.session_status == VALID_SESSION_STATUS
         return self._session_job_result(
@@ -137,17 +150,44 @@ class WorkflowExecutor:
     async def _wait_for_login(self, active_session: Any) -> bool:
         context = active_session.context
         page = context.pages[0] if context.pages else await context.new_page()
-        waited_ms = 0
-        timeout_ms = int(self.config.manual_login_timeout_seconds * 1000)
-        while waited_ms < timeout_ms:
-            cookies = await context.cookies("https://www.reddit.com/")
-            if any(cookie.get("name") in {"reddit_session", "token_v2"} for cookie in cookies):
+        timeout_seconds = self.config.manual_login_timeout_seconds
+        deadline = asyncio.get_running_loop().time() + timeout_seconds
+        logger.info("Waiting up to %.0f seconds for Reddit manual login.", timeout_seconds)
+        while asyncio.get_running_loop().time() < deadline:
+            if await self._has_reddit_login_signal(context):
+                logger.info("Detected authenticated Reddit session.")
                 return True
             if all(item.is_closed() for item in context.pages):
+                logger.info("Manual login browser was closed before authentication.")
                 return False
-            await page.wait_for_timeout(2000)
-            waited_ms += 2000
+            page = next((item for item in context.pages if not item.is_closed()), page)
+            await self._wait_for_browser_login_event(page, max(0.1, min(10.0, deadline - asyncio.get_running_loop().time())))
+        logger.info("Manual login timed out.")
         return False
+
+    @staticmethod
+    async def _has_reddit_login_signal(context: Any) -> bool:
+        cookies = await context.cookies("https://www.reddit.com/")
+        return any(cookie.get("name") == REDDIT_AUTH_COOKIE and cookie.get("value") for cookie in cookies)
+
+    @staticmethod
+    async def _wait_for_browser_login_event(page: Any, timeout_seconds: float) -> None:
+        tasks = [
+            asyncio.create_task(page.wait_for_event("framenavigated", timeout=timeout_seconds * 1000)),
+            asyncio.create_task(page.wait_for_event("load", timeout=timeout_seconds * 1000)),
+            asyncio.create_task(page.wait_for_event("domcontentloaded", timeout=timeout_seconds * 1000)),
+        ]
+        try:
+            done, pending = await asyncio.wait(tasks, timeout=timeout_seconds, return_when=asyncio.FIRST_COMPLETED)
+            for task in pending:
+                task.cancel()
+            for task in done:
+                with contextlib.suppress(Exception):
+                    await task
+        finally:
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
 
     @staticmethod
     def _session_job_result(

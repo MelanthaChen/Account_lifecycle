@@ -40,6 +40,18 @@ class BrowserManager:
         active_session = self._active_sessions.pop(str(account.id), None)
         return await provider.finish_session(account, active_session)
 
+    async def cancel_session(self, account: AccountLike) -> BrowserSessionResult:
+        """Cancel a manual login session without persisting storage state."""
+        provider = provider_manager.get_provider(account.platform)
+        active_session = self._active_sessions.pop(str(account.id), None)
+        if active_session is not None:
+            await provider.close_session(active_session)
+        return BrowserSessionResult(
+            storage_directory=str(provider.get_storage_directory(account)),
+            browser_profile_path=str(provider.get_profile_directory(account)),
+            session_status="login_required",
+        )
+
     async def open_persistent_context(self, account: AccountLike, *, headless: bool) -> object:
         """Open a provider-owned persistent browser context."""
         provider = provider_manager.get_provider(account.platform)
