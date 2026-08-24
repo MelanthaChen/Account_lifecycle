@@ -4,100 +4,60 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
-from app.models.enums import ActivityType
-from app.core.platforms import provider_home_url
+from app.models.enums import AutomationJobType
 from app.repositories.account_repository import AccountRepository
-from app.services.activity_service import ActivityService
+from app.schemas.automation_job import AutomationJobCreate
+from app.services.automation_job_service import AutomationJobService
 
 
 class BrowserSessionService:
-    """Preserves session API contracts after runtime extraction."""
+    """Queues browser session work for the standalone automation agent."""
 
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
         self.accounts = AccountRepository(session)
-        self.activity_service = ActivityService(session)
+        self.jobs = AutomationJobService(session)
 
     async def create(self, account_id: UUID) -> Account:
-        """Reject direct browser launch from the backend runtime."""
-        account = await self._get_account(account_id)
-        activity = await self.activity_service.record_start(
-            account=account,
-            activity_type=ActivityType.LOGIN,
-            target_url=f"{provider_home_url(account.platform).rstrip('/')}/login/",
-            title="Create browser session",
-        )
-        return await self._runtime_moved(activity)
+        return await self._enqueue(account_id, AutomationJobType.SESSION_LOGIN, "login_queued")
 
     async def finish(self, account_id: UUID) -> Account:
-        """Reject direct browser session persistence from the backend runtime."""
-        account = await self._get_account(account_id)
-        activity = await self.activity_service.record_start(
-            account=account,
-            activity_type=ActivityType.LOGIN,
-            target_url=f"{provider_home_url(account.platform).rstrip('/')}/login/",
-            title="Finish browser session",
-        )
-        return await self._runtime_moved(activity)
+        return await self._enqueue(account_id, AutomationJobType.SESSION_VALIDATE, "validation_queued")
 
     async def validate(self, account_id: UUID) -> Account:
-        """Reject direct browser validation from the backend runtime."""
-        account = await self._get_account(account_id)
-        activity = await self.activity_service.record_start(
-            account=account,
-            activity_type=ActivityType.VALIDATE_SESSION,
-            title="Validate browser session",
-        )
-        return await self._runtime_moved(activity)
+        return await self._enqueue(account_id, AutomationJobType.SESSION_VALIDATE, "validation_queued")
 
     async def refresh(self, account_id: UUID) -> Account:
-        """Reject direct browser refresh from the backend runtime."""
-        account = await self._get_account(account_id)
-        activity = await self.activity_service.record_start(
-            account=account,
-            activity_type=ActivityType.REFRESH_SESSION,
-            title="Refresh browser session",
-        )
-        return await self._runtime_moved(activity)
+        return await self._enqueue(account_id, AutomationJobType.SESSION_REFRESH, "refresh_queued")
 
     async def delete(self, account_id: UUID) -> Account:
-        """Reject direct browser session deletion from the backend runtime."""
-        account = await self._get_account(account_id)
-        activity = await self.activity_service.record_start(
-            account=account,
-            activity_type=ActivityType.DELETE_SESSION,
-            title="Delete browser session",
-        )
-        return await self._runtime_moved(activity)
+        return await self._enqueue(account_id, AutomationJobType.SESSION_DELETE, "delete_queued")
 
     async def open_browser(self, account_id: UUID) -> Account:
-        """Reject direct browser launch from the backend runtime."""
-        account = await self._get_account(account_id)
-        activity = await self.activity_service.record_start(
-            account=account,
-            activity_type=ActivityType.OPEN_BROWSER,
-            title="Open browser profile",
-        )
-        return await self._runtime_moved(activity)
+        return await self._enqueue(account_id, AutomationJobType.OPEN_BROWSER, "open_browser_queued")
 
     async def open_home(self, account_id: UUID) -> Account:
-        """Reject direct provider home launch from the backend runtime."""
+        return await self._enqueue(account_id, AutomationJobType.OPEN_HOME, "open_home_queued")
+
+    async def _enqueue(
+        self,
+        account_id: UUID,
+        job_type: AutomationJobType,
+        queued_status: str,
+    ) -> Account:
         account = await self._get_account(account_id)
-        activity = await self.activity_service.record_start(
-            account=account,
-            activity_type=ActivityType.OPEN_HOME,
-            target_url=provider_home_url(account.platform),
-            title="Open provider home",
+        account.session_status = queued_status
+        await self.jobs.create_job(
+            AutomationJobCreate(
+                account_id=account.id,
+                job_type=job_type,
+            )
         )
-        return await self._runtime_moved(activity)
+        await self.session.refresh(account)
+        return account
 
     async def _get_account(self, account_id: UUID) -> Account:
         account = await self.accounts.get(account_id)
         if account is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Account not found")
         return account
-
-    async def _runtime_moved(self, activity):
-        error = RuntimeError("Browser runtime is owned by the automation agent")
-        await self.activity_service.record_failure(activity, error)
-        raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, str(error))

@@ -4,11 +4,12 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
-from app.models.enums import ActivityType
-from app.core.platforms import provider_display_name, provider_home_url
+from app.models.enums import AutomationJobType
 from app.repositories.account_repository import AccountRepository
 from app.schemas.account import AccountCreate, AccountUpdate
+from app.schemas.automation_job import AutomationJobCreate
 from app.services.activity_service import ActivityService
+from app.services.automation_job_service import AutomationJobService
 
 
 class AccountService:
@@ -18,6 +19,7 @@ class AccountService:
         self.session = session
         self.accounts = AccountRepository(session)
         self.activity_service = ActivityService(session)
+        self.jobs = AutomationJobService(session)
 
     async def list_accounts(self, search: str | None = None) -> list[Account]:
         """Return managed accounts, optionally filtered by nickname or username."""
@@ -64,15 +66,13 @@ class AccountService:
         await self.session.commit()
 
     async def sync_profile(self, account_id: UUID) -> Account:
-        """Reject direct browser-backed profile sync from the backend runtime."""
+        """Queue profile sync for the standalone automation agent."""
         account = await self.get_account(account_id)
-
-        activity = await self.activity_service.record_start(
-            account=account,
-            activity_type=ActivityType.SYNC_PROFILE,
-            target_url=f"{provider_home_url(account.platform).rstrip('/')}/user/{account.username}/",
-            title=f"Sync {provider_display_name(account.platform)} profile",
+        await self.jobs.create_job(
+            AutomationJobCreate(
+                account_id=account.id,
+                job_type=AutomationJobType.PROFILE_SYNC,
+            )
         )
-        error = RuntimeError("Profile sync browser runtime is owned by the automation agent")
-        await self.activity_service.record_failure(activity, error)
-        raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, str(error))
+        await self.session.refresh(account)
+        return account

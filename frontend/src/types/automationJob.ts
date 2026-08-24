@@ -2,7 +2,8 @@ export type AutomationJobStatus = "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED" | 
 
 export interface AutomationJob {
   id: string;
-  campaign_id: string;
+  job_type: string;
+  campaign_id: string | null;
   account_id: string;
   workflow_id: string | null;
   status: AutomationJobStatus;

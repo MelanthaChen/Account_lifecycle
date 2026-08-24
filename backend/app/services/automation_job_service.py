@@ -16,6 +16,7 @@ from app.models.enums import (
     ActivityStatus,
     ActivityType,
     AutomationJobStatus,
+    AutomationJobType,
     CampaignStatus,
     WorkflowActionType,
 )
@@ -61,9 +62,13 @@ class AutomationJobService:
 
     async def create_job(self, payload: AutomationJobCreate) -> AutomationJob:
         """Create one queued automation job."""
-        await self._get_campaign(payload.campaign_id)
+        if payload.job_type == AutomationJobType.WORKFLOW:
+            if payload.campaign_id is None:
+                raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "campaign_id is required")
+            await self._get_campaign(payload.campaign_id)
         await self._get_account(payload.account_id)
         job = AutomationJob(
+            job_type=payload.job_type,
             campaign_id=payload.campaign_id,
             account_id=payload.account_id,
             workflow_id=payload.workflow_id,
@@ -91,6 +96,7 @@ class AutomationJobService:
                         campaign_id=campaign_id,
                         account_id=account_id,
                         workflow_id=workflow_id,
+                        job_type=AutomationJobType.WORKFLOW,
                         status=AutomationJobStatus.QUEUED,
                     )
                 )
@@ -138,7 +144,9 @@ class AutomationJobService:
         job.result_json = payload.result_json
         job.error = None
         await self._record_result_activities(job, payload.result_json, ActivityStatus.SUCCESS)
-        await self._update_campaign_status(job.campaign_id)
+        await self._apply_session_result(job, payload.result_json)
+        if job.campaign_id is not None:
+            await self._update_campaign_status(job.campaign_id)
         await self._upsert_worker(resolved_worker_id, status_value="IDLE", running_job=None)
         await self.session.commit()
         await self.session.refresh(job)
@@ -157,7 +165,16 @@ class AutomationJobService:
         job.result_json = payload.result_json
         job.error = payload.error
         await self._record_result_activities(job, payload.result_json or {"error": payload.error}, ActivityStatus.FAILED)
-        await self._update_campaign_status(job.campaign_id)
+        if job.job_type in {
+            AutomationJobType.SESSION_LOGIN,
+            AutomationJobType.SESSION_VALIDATE,
+            AutomationJobType.SESSION_REFRESH,
+            AutomationJobType.SESSION_DELETE,
+        }:
+            account = await self._get_account(job.account_id)
+            account.session_status = "failed"
+        if job.campaign_id is not None:
+            await self._update_campaign_status(job.campaign_id)
         await self._upsert_worker(resolved_worker_id, status_value="IDLE", running_job=None)
         await self.session.commit()
         await self.session.refresh(job)
@@ -185,12 +202,12 @@ class AutomationJobService:
         )
 
     async def _payload(self, job: AutomationJob) -> AutomationJobPayload:
-        campaign = await self._get_campaign(job.campaign_id)
+        campaign = await self._get_campaign(job.campaign_id) if job.campaign_id else None
         account = await self._get_account(job.account_id)
-        steps = await self.workflows.list_steps(job.campaign_id)
+        steps = await self.workflows.list_steps(job.campaign_id) if job.campaign_id else []
         return AutomationJobPayload(
             **AutomationJobRead.model_validate(job).model_dump(),
-            campaign=await self._campaign_read(campaign),
+            campaign=await self._campaign_read(campaign) if campaign else None,
             account=AccountRead.model_validate(account),
             workflow_steps=steps,
         )
@@ -248,6 +265,62 @@ class AutomationJobService:
             campaign.status = CampaignStatus.RUNNING
         else:
             campaign.status = CampaignStatus.FAILED if failed else CampaignStatus.COMPLETED
+
+    async def _apply_session_result(self, job: AutomationJob, result: dict[str, Any]) -> None:
+        if job.job_type not in {
+            AutomationJobType.SESSION_LOGIN,
+            AutomationJobType.SESSION_VALIDATE,
+            AutomationJobType.SESSION_REFRESH,
+            AutomationJobType.SESSION_DELETE,
+            AutomationJobType.OPEN_BROWSER,
+            AutomationJobType.OPEN_HOME,
+            AutomationJobType.PROFILE_SYNC,
+        }:
+            return
+
+        account = await self._get_account(job.account_id)
+        if job.job_type == AutomationJobType.PROFILE_SYNC:
+            self._apply_profile_result(account, result)
+            return
+
+        session = result.get("session") if isinstance(result, dict) else None
+        if not isinstance(session, dict):
+            return
+
+        if "session_path" in session:
+            account.session_path = session.get("session_path")
+        if "storage_directory" in session:
+            account.storage_directory = session.get("storage_directory")
+        if "browser_profile_path" in session:
+            account.browser_profile_path = session.get("browser_profile_path")
+        if "session_status" in session:
+            account.session_status = session.get("session_status")
+        now = datetime.now(UTC)
+        if session.get("last_login_changed"):
+            account.last_login = now
+        if session.get("last_validation_changed"):
+            account.last_validation = now
+
+    @staticmethod
+    def _apply_profile_result(account: Account, result: dict[str, Any]) -> None:
+        profile = result.get("profile") if isinstance(result, dict) else None
+        if not isinstance(profile, dict):
+            return
+        for key in [
+            "display_name",
+            "reddit_username",
+            "avatar_url",
+            "karma_post",
+            "karma_comment",
+            "cake_day",
+            "verified_email",
+            "is_nsfw",
+            "is_moderator",
+            "is_gold",
+        ]:
+            if key in profile:
+                setattr(account, key, profile.get(key))
+        account.last_profile_sync = datetime.now(UTC)
 
     async def _campaign_read(self, campaign: Campaign) -> CampaignRead:
         return CampaignRead(

@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { useEffect, useMemo, useRef, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   CheckCircle2,
   ExternalLink,
@@ -19,6 +20,7 @@ import {
   useRefreshAccountSession,
   useValidateAccountSession
 } from "../../hooks/useAccounts";
+import { useAutomationJobs } from "../../hooks/useAutomationJobs";
 import { cn } from "../../lib/utils";
 import { useToast } from "../../store/useToast";
 import type { Account } from "../../types/account";
@@ -29,6 +31,8 @@ interface AccountSessionPanelProps {
 
 export function AccountSessionPanel({ account }: AccountSessionPanelProps) {
   const { notify } = useToast();
+  const queryClient = useQueryClient();
+  const completedJobRef = useRef<string | null>(null);
   const createSession = useCreateAccountSession(account.id);
   const finishSession = useFinishAccountSession(account.id);
   const validate = useValidateAccountSession(account.id);
@@ -36,6 +40,16 @@ export function AccountSessionPanel({ account }: AccountSessionPanelProps) {
   const deleteSession = useDeleteAccountSession(account.id);
   const openBrowser = useOpenAccountBrowser(account.id);
   const openHome = useOpenAccountHome(account.id);
+  const automationJobs = useAutomationJobs({ limit: 100 });
+  const sessionJobs = useMemo(
+    () =>
+      (automationJobs.data ?? [])
+        .filter((job) => job.account_id === account.id && SESSION_JOB_TYPES.has(job.job_type))
+        .sort((a, b) => new Date(b.queued_at).getTime() - new Date(a.queued_at).getTime()),
+    [account.id, automationJobs.data]
+  );
+  const latestSessionJob = sessionJobs[0];
+  const hasActiveSessionJob = sessionJobs.some((job) => job.status === "QUEUED" || job.status === "RUNNING");
 
   const status = normalizeSessionStatus(account.session_status);
   const hasIdentity = Boolean(account.browser_profile_path || account.storage_directory || account.session_path);
@@ -49,6 +63,19 @@ export function AccountSessionPanel({ account }: AccountSessionPanelProps) {
     openBrowser,
     openHome
   ].some((mutation) => mutation.isPending);
+  const controlsDisabled = isBusy || hasActiveSessionJob;
+
+  useEffect(() => {
+    if (!latestSessionJob || !["SUCCESS", "FAILED", "CANCELLED"].includes(latestSessionJob.status)) {
+      return;
+    }
+    if (completedJobRef.current === latestSessionJob.id) {
+      return;
+    }
+    completedJobRef.current = latestSessionJob.id;
+    queryClient.invalidateQueries({ queryKey: ["accounts"] });
+    queryClient.invalidateQueries({ queryKey: ["accounts", account.id] });
+  }, [account.id, latestSessionJob, queryClient]);
 
   return (
     <section className="space-y-5">
@@ -66,14 +93,20 @@ export function AccountSessionPanel({ account }: AccountSessionPanelProps) {
         </div>
       ) : null}
 
+      {latestSessionJob ? (
+        <div className="rounded-md border border-border bg-slate-50 px-4 py-3 text-sm text-muted-foreground">
+          Latest session job: {latestSessionJob.job_type.replaceAll("_", " ")} · {latestSessionJob.status}
+        </div>
+      ) : null}
+
       <div className="rounded-md border border-border bg-white p-4">
         <div className="flex flex-wrap gap-2">
           <Button
             type="button"
-            disabled={createSession.isPending || isBusy}
+            disabled={createSession.isPending || controlsDisabled}
             onClick={() =>
               createSession.mutate(undefined, {
-                onSuccess: () => notify("Browser opened. Complete login, then click Finish Login.", "success"),
+                onSuccess: () => notify("Session login queued. The local agent will open the browser.", "success"),
                 onError: () => notify("Unable to create session.", "error")
               })
             }
@@ -84,7 +117,7 @@ export function AccountSessionPanel({ account }: AccountSessionPanelProps) {
           <Button
             type="button"
             variant="secondary"
-            disabled={finishSession.isPending || !isLoginPending}
+            disabled={finishSession.isPending || controlsDisabled || !isLoginPending}
             onClick={() =>
               finishSession.mutate(undefined, {
                 onSuccess: (updated) =>
@@ -99,7 +132,7 @@ export function AccountSessionPanel({ account }: AccountSessionPanelProps) {
           <Button
             type="button"
             variant="secondary"
-            disabled={validate.isPending || !hasIdentity}
+            disabled={validate.isPending || controlsDisabled || !hasIdentity}
             onClick={() =>
               validate.mutate(undefined, {
                 onSuccess: (updated) =>
@@ -114,7 +147,7 @@ export function AccountSessionPanel({ account }: AccountSessionPanelProps) {
           <Button
             type="button"
             variant="secondary"
-            disabled={refresh.isPending || !hasIdentity}
+            disabled={refresh.isPending || controlsDisabled || !hasIdentity}
             onClick={() =>
               refresh.mutate(undefined, {
                 onSuccess: () => notify("Session refreshed.", "success"),
@@ -128,10 +161,10 @@ export function AccountSessionPanel({ account }: AccountSessionPanelProps) {
           <Button
             type="button"
             variant="secondary"
-            disabled={openBrowser.isPending || isBusy}
+            disabled={openBrowser.isPending || controlsDisabled}
             onClick={() =>
               openBrowser.mutate(undefined, {
-                onSuccess: () => notify("Browser profile closed.", "success"),
+                onSuccess: () => notify("Open browser job queued.", "success"),
                 onError: () => notify("Unable to open browser profile.", "error")
               })
             }
@@ -142,10 +175,10 @@ export function AccountSessionPanel({ account }: AccountSessionPanelProps) {
           <Button
             type="button"
             variant="secondary"
-            disabled={openHome.isPending || isBusy}
+            disabled={openHome.isPending || controlsDisabled}
             onClick={() =>
               openHome.mutate(undefined, {
-                onSuccess: () => notify(`${platformLabel(account.platform)} closed.`, "success"),
+                onSuccess: () => notify(`Open ${platformLabel(account.platform)} job queued.`, "success"),
                 onError: () => notify(`Unable to open ${platformLabel(account.platform)}.`, "error")
               })
             }
@@ -156,7 +189,7 @@ export function AccountSessionPanel({ account }: AccountSessionPanelProps) {
           <Button
             type="button"
             variant="danger"
-            disabled={deleteSession.isPending || !hasIdentity}
+            disabled={deleteSession.isPending || controlsDisabled || !hasIdentity}
             onClick={() =>
               deleteSession.mutate(undefined, {
                 onSuccess: () => notify("Session deleted.", "success"),
@@ -186,9 +219,16 @@ function SessionStatusBadge({ status }: { status: string }) {
   const classes: Record<string, string> = {
     VALID: "bg-emerald-50 text-emerald-700 ring-emerald-200",
     INVALID: "bg-red-50 text-red-700 ring-red-200",
+    FAILED: "bg-red-50 text-red-700 ring-red-200",
     EXPIRED: "bg-red-50 text-red-700 ring-red-200",
     MISSING: "bg-slate-100 text-slate-600 ring-slate-200",
-    LOGIN_REQUIRED: "bg-amber-50 text-amber-700 ring-amber-200"
+    LOGIN_REQUIRED: "bg-amber-50 text-amber-700 ring-amber-200",
+    LOGIN_QUEUED: "bg-blue-50 text-blue-700 ring-blue-200",
+    VALIDATION_QUEUED: "bg-blue-50 text-blue-700 ring-blue-200",
+    REFRESH_QUEUED: "bg-blue-50 text-blue-700 ring-blue-200",
+    DELETE_QUEUED: "bg-blue-50 text-blue-700 ring-blue-200",
+    OPEN_BROWSER_QUEUED: "bg-blue-50 text-blue-700 ring-blue-200",
+    OPEN_HOME_QUEUED: "bg-blue-50 text-blue-700 ring-blue-200"
   };
 
   return (
@@ -227,3 +267,12 @@ function getStorageDirectory(sessionPath: string | null) {
 function platformLabel(platform: string) {
   return platform === "reddit" ? "Reddit" : platform;
 }
+
+const SESSION_JOB_TYPES = new Set([
+  "SESSION_LOGIN",
+  "SESSION_VALIDATE",
+  "SESSION_REFRESH",
+  "SESSION_DELETE",
+  "OPEN_BROWSER",
+  "OPEN_HOME"
+]);

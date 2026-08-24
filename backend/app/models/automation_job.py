@@ -6,14 +6,25 @@ from sqlalchemy import DateTime, Enum, ForeignKey, JSON, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
-from app.models.enums import AutomationJobStatus
+from app.models.enums import AutomationJobStatus, AutomationJobType
 
 
 class AutomationJob(Base):
     __tablename__ = "automation_jobs"
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
-    campaign_id: Mapped[UUID] = mapped_column(ForeignKey("campaigns.id", ondelete="CASCADE"), index=True)
+    job_type: Mapped[AutomationJobType] = mapped_column(
+        Enum(
+            AutomationJobType,
+            name="automation_job_type",
+            values_callable=lambda enum: [item.value for item in enum],
+            validate_strings=True,
+        ),
+        default=AutomationJobType.WORKFLOW,
+        nullable=False,
+        index=True,
+    )
+    campaign_id: Mapped[UUID | None] = mapped_column(ForeignKey("campaigns.id", ondelete="CASCADE"), index=True)
     account_id: Mapped[UUID] = mapped_column(ForeignKey("accounts.id", ondelete="CASCADE"), index=True)
     workflow_id: Mapped[UUID | None] = mapped_column(ForeignKey("workflow_steps.id", ondelete="SET NULL"))
     status: Mapped[AutomationJobStatus] = mapped_column(

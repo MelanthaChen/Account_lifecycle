@@ -4,21 +4,23 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.enums import AutomationJobStatus
+from app.models.enums import AutomationJobStatus, AutomationJobType
 from app.schemas.account import AccountRead
 from app.schemas.campaign import CampaignRead
 from app.schemas.workflow import WorkflowStepRead
 
 
 class AutomationJobCreate(BaseModel):
-    campaign_id: UUID
+    campaign_id: UUID | None = None
     account_id: UUID
     workflow_id: UUID | None = None
+    job_type: AutomationJobType = AutomationJobType.WORKFLOW
 
 
 class AutomationJobRead(BaseModel):
     id: UUID
-    campaign_id: UUID
+    job_type: AutomationJobType
+    campaign_id: UUID | None = None
     account_id: UUID
     workflow_id: UUID | None = None
     status: AutomationJobStatus
@@ -33,7 +35,7 @@ class AutomationJobRead(BaseModel):
 
 
 class AutomationJobPayload(AutomationJobRead):
-    campaign: CampaignRead
+    campaign: CampaignRead | None = None
     account: AccountRead
     workflow_steps: list[WorkflowStepRead]
 

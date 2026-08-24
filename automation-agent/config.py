@@ -16,6 +16,7 @@ class AgentConfig:
     headless: bool
     provider: str
     heartbeat_interval: float = 30.0
+    manual_login_timeout_seconds: float = 900.0
 
 
 def load_config() -> AgentConfig:
@@ -32,4 +33,5 @@ def load_config() -> AgentConfig:
         headless=bool(data.get("headless", False)),
         provider=str(data.get("provider") or "reddit"),
         heartbeat_interval=float(data.get("heartbeat_interval") or 30),
+        manual_login_timeout_seconds=float(data.get("manual_login_timeout_seconds") or 900),
     )
