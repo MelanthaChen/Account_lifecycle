@@ -8,8 +8,8 @@ AGENT_ROOT = Path(__file__).resolve().parent
 
 @dataclass(frozen=True)
 class AgentConfig:
-    worker_id: str
-    worker_secret: str
+    agent_name: str
+    agent_secret: str
     backend_url: str
     poll_interval: float
     profile_root: Path
@@ -25,8 +25,8 @@ def load_config() -> AgentConfig:
     config_path = AGENT_ROOT / "agent.yaml"
     data = yaml.safe_load(config_path.read_text()) or {}
     return AgentConfig(
-        worker_id=str(data.get("worker_id") or "local-agent-1"),
-        worker_secret=str(data.get("worker_secret") or ""),
+        agent_name=str(data.get("agent_name") or data.get("worker_id") or "automation-agent"),
+        agent_secret=str(data.get("agent_secret") or data.get("worker_secret") or ""),
         backend_url=str(data.get("backend_url") or "http://127.0.0.1:8001/api/v1"),
         poll_interval=float(data.get("poll_interval") or 5),
         profile_root=(AGENT_ROOT / str(data.get("profile_root") or "../storage")).resolve(),

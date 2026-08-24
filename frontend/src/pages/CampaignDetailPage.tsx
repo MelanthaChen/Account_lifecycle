@@ -416,7 +416,7 @@ function AutomationJobsPanel({
     <section className="rounded-md border border-border bg-white p-5">
       <div className="border-b border-border pb-3">
         <h2 className="text-base font-semibold">Automation Jobs</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Queued and running work picked up by local automation agents.</p>
+        <p className="mt-1 text-sm text-muted-foreground">Queued and running work picked up by the Automation Agent.</p>
       </div>
       {isLoading ? (
         <div className="py-6 text-sm text-muted-foreground">Loading jobs...</div>
@@ -430,7 +430,7 @@ function AutomationJobsPanel({
             <thead className="text-xs uppercase text-muted-foreground">
               <tr>
                 <th className="py-2 pr-4">Status</th>
-                <th className="py-2 pr-4">Worker</th>
+                <th className="py-2 pr-4">Runtime</th>
                 <th className="py-2 pr-4">Queued</th>
                 <th className="py-2 pr-4">Started</th>
                 <th className="py-2 pr-4">Finished</th>
@@ -442,7 +442,7 @@ function AutomationJobsPanel({
                   <td className="py-2 pr-4">
                     <span className={cn("rounded px-2 py-1 text-xs font-medium", jobStatusClass(job.status))}>{job.status}</span>
                   </td>
-                  <td className="py-2 pr-4">{job.worker_id ?? "Unassigned"}</td>
+                  <td className="py-2 pr-4">{job.worker_id ? "Automation Agent" : "Queued"}</td>
                   <td className="py-2 pr-4">{formatDate(job.queued_at)}</td>
                   <td className="py-2 pr-4">{job.started_at ? formatDate(job.started_at) : "Not started"}</td>
                   <td className="py-2 pr-4">{job.completed_at ? formatDate(job.completed_at) : "Not finished"}</td>

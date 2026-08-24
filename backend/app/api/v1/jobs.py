@@ -25,18 +25,23 @@ def service(session: AsyncSession = Depends(get_session)) -> AutomationJobServic
     return AutomationJobService(session)
 
 
-def authenticate_worker(
+def authenticate_agent(
+    x_agent_secret: str | None = Header(default=None),
+    x_agent_name: str | None = Header(default=None),
     x_worker_id: str | None = Header(default=None),
     x_worker_secret: str | None = Header(default=None),
 ) -> str:
-    if not x_worker_id or not x_worker_secret:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Worker credentials are required")
-    expected_secret = get_settings().automation_workers.get(x_worker_id)
-    if expected_secret is None:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Unknown worker")
-    if x_worker_secret != expected_secret:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Invalid worker secret")
-    return x_worker_id
+    settings = get_settings()
+    supplied_secret = x_agent_secret or x_worker_secret
+    if not supplied_secret:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Automation Agent credentials are required")
+    expected_secret = settings.automation_agent_secret
+    if not expected_secret and settings.automation_workers:
+        expected_secret = next(iter(settings.automation_workers.values()))
+    if not expected_secret or supplied_secret != expected_secret:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Invalid Automation Agent secret")
+    # TODO: this is intentionally a single-agent identity. A distributed runtime can add routing later.
+    return x_agent_name or settings.automation_agent_name or x_worker_id or "automation-agent"
 
 
 @router.get("/jobs", response_model=list[AutomationJobRead])
@@ -60,9 +65,9 @@ async def create_job(
 async def get_next_job(
     response: Response,
     jobs: AutomationJobService = Depends(service),
-    worker_id: str = Depends(authenticate_worker),
+    agent_name: str = Depends(authenticate_agent),
 ) -> AutomationJobPayload | None:
-    job = await jobs.next_job(worker_id=worker_id)
+    job = await jobs.next_job(agent_name=agent_name)
     if job is None:
         response.status_code = status.HTTP_204_NO_CONTENT
     return job
@@ -81,9 +86,9 @@ async def start_job(
     job_id: UUID,
     payload: AutomationJobStart,
     jobs: AutomationJobService = Depends(service),
-    worker_id: str = Depends(authenticate_worker),
+    agent_name: str = Depends(authenticate_agent),
 ) -> AutomationJobRead:
-    return await jobs.start_job(job_id, payload, worker_id=worker_id)
+    return await jobs.start_job(job_id, payload, agent_name=agent_name)
 
 
 @router.post("/jobs/{job_id}/finish", response_model=AutomationJobRead)
@@ -91,9 +96,9 @@ async def finish_job(
     job_id: UUID,
     payload: AutomationJobFinish,
     jobs: AutomationJobService = Depends(service),
-    worker_id: str = Depends(authenticate_worker),
+    agent_name: str = Depends(authenticate_agent),
 ) -> AutomationJobRead:
-    return await jobs.finish_job(job_id, payload, worker_id=worker_id)
+    return await jobs.finish_job(job_id, payload, agent_name=agent_name)
 
 
 @router.post("/jobs/{job_id}/fail", response_model=AutomationJobRead)
@@ -101,22 +106,22 @@ async def fail_job(
     job_id: UUID,
     payload: AutomationJobFail,
     jobs: AutomationJobService = Depends(service),
-    worker_id: str = Depends(authenticate_worker),
+    agent_name: str = Depends(authenticate_agent),
 ) -> AutomationJobRead:
-    return await jobs.fail_job(job_id, payload, worker_id=worker_id)
+    return await jobs.fail_job(job_id, payload, agent_name=agent_name)
 
 
-@router.post("/workers/heartbeat", response_model=WorkerHeartbeatSummary)
-async def post_worker_heartbeat(
+@router.post("/agent/heartbeat", response_model=WorkerHeartbeatSummary)
+async def post_agent_heartbeat(
     payload: WorkerHeartbeatUpdate,
     jobs: AutomationJobService = Depends(service),
-    worker_id: str = Depends(authenticate_worker),
+    agent_name: str = Depends(authenticate_agent),
 ) -> WorkerHeartbeatSummary:
-    return await jobs.record_heartbeat(worker_id, payload)
+    return await jobs.record_heartbeat(agent_name, payload)
 
 
-@router.get("/workers/heartbeat", response_model=WorkerHeartbeatSummary)
-async def worker_heartbeat(
+@router.get("/agent/heartbeat", response_model=WorkerHeartbeatSummary)
+async def agent_heartbeat(
     jobs: AutomationJobService = Depends(service),
 ) -> WorkerHeartbeatSummary:
     return await jobs.heartbeat()

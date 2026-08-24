@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { getAutomationJob, getWorkerHeartbeat, listAutomationJobs } from "../api/automationJobs";
+import { getAutomationAgentHeartbeat, getAutomationJob, listAutomationJobs } from "../api/automationJobs";
 import type { AutomationJobStatus } from "../types/automationJob";
 
 export function useAutomationJobs(params: { limit?: number; status?: AutomationJobStatus } = {}) {
@@ -23,10 +23,10 @@ export function useAutomationJob(jobId: string | null) {
   });
 }
 
-export function useWorkerHeartbeat() {
+export function useAutomationAgentHeartbeat() {
   return useQuery({
-    queryKey: ["workers", "heartbeat"],
-    queryFn: getWorkerHeartbeat,
+    queryKey: ["automation-agent", "heartbeat"],
+    queryFn: getAutomationAgentHeartbeat,
     refetchInterval: 5_000
   });
 }

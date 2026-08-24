@@ -23,7 +23,7 @@ class AutomationAgent:
         self.heartbeat = HeartbeatLoop(config, self.api)
 
     async def run_forever(self) -> None:
-        logger.info("Starting automation agent %s", self.config.worker_id)
+        logger.info("Starting Automation Agent %s", self.config.agent_name)
         heartbeat_task = asyncio.create_task(self.heartbeat.run_forever())
         try:
             await self._poll_forever()

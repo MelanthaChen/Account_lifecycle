@@ -26,6 +26,8 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("CORS_ALLOWED_ORIGINS", "CORS_ORIGINS"),
     )
     automation_workers: dict[str, str] = Field(default_factory=dict)
+    automation_agent_name: str = Field(default="automation-agent")
+    automation_agent_secret: str = Field(default="")
     worker_offline_seconds: int = 90
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")

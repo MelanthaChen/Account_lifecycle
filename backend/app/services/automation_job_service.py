@@ -179,61 +179,57 @@ class AutomationJobService:
             await self.session.refresh(job)
         return jobs
 
-    async def next_job(self, *, worker_id: str) -> AutomationJobPayload | None:
-        """Return the oldest queued job with all execution payload required by an agent."""
+    async def next_job(self, *, agent_name: str) -> AutomationJobPayload | None:
+        """Return the oldest queued job for the single Automation Agent."""
         job = await self.jobs.next_queued()
         if job is None:
-            await self._upsert_worker(worker_id, status_value="IDLE", running_job=None)
+            await self._upsert_worker(agent_name, status_value="IDLE", running_job=None)
             await self.session.commit()
             return None
-        await self._upsert_worker(worker_id, status_value="IDLE", running_job=None)
+        await self._upsert_worker(agent_name, status_value="IDLE", running_job=None)
         await self.session.commit()
         return await self._payload(job)
 
-    async def start_job(self, job_id: UUID, payload: AutomationJobStart, *, worker_id: str) -> AutomationJob:
+    async def start_job(self, job_id: UUID, payload: AutomationJobStart, *, agent_name: str) -> AutomationJob:
         """Mark a queued job as running."""
         job = await self._get_job(job_id)
         if job.status != AutomationJobStatus.QUEUED:
             raise HTTPException(status.HTTP_409_CONFLICT, f"Job is already {job.status}")
         job.status = AutomationJobStatus.RUNNING
         job.started_at = datetime.now(UTC)
-        job.worker_id = self._resolve_worker_id(payload.worker_id, worker_id)
-        await self._upsert_worker(job.worker_id, status_value="RUNNING", running_job=job.id)
+        job.worker_id = agent_name
+        await self._upsert_worker(agent_name, status_value="RUNNING", running_job=job.id)
         await self.session.commit()
         await self.session.refresh(job)
         return job
 
-    async def finish_job(self, job_id: UUID, payload: AutomationJobFinish, *, worker_id: str) -> AutomationJob:
+    async def finish_job(self, job_id: UUID, payload: AutomationJobFinish, *, agent_name: str) -> AutomationJob:
         """Mark a running job as successful and persist the agent result."""
         job = await self._get_job(job_id)
-        resolved_worker_id = self._resolve_worker_id(payload.worker_id, worker_id)
-        self._assert_worker_owns_job(job, resolved_worker_id)
         if job.status != AutomationJobStatus.RUNNING:
             raise HTTPException(status.HTTP_409_CONFLICT, f"Job is {job.status}")
         job.status = AutomationJobStatus.SUCCESS
         job.completed_at = datetime.now(UTC)
-        job.worker_id = resolved_worker_id
+        job.worker_id = agent_name
         job.result_json = payload.result_json
         job.error = None
         await self._record_result_activities(job, payload.result_json, ActivityStatus.SUCCESS)
         await self._apply_session_result(job, payload.result_json)
         if job.campaign_id is not None:
             await self._update_campaign_status(job.campaign_id)
-        await self._upsert_worker(resolved_worker_id, status_value="IDLE", running_job=None)
+        await self._upsert_worker(agent_name, status_value="IDLE", running_job=None)
         await self.session.commit()
         await self.session.refresh(job)
         return job
 
-    async def fail_job(self, job_id: UUID, payload: AutomationJobFail, *, worker_id: str) -> AutomationJob:
+    async def fail_job(self, job_id: UUID, payload: AutomationJobFail, *, agent_name: str) -> AutomationJob:
         """Mark a running job as failed and persist the error returned by the agent."""
         job = await self._get_job(job_id)
-        resolved_worker_id = self._resolve_worker_id(payload.worker_id, worker_id)
-        self._assert_worker_owns_job(job, resolved_worker_id)
         if job.status != AutomationJobStatus.RUNNING:
             raise HTTPException(status.HTTP_409_CONFLICT, f"Job is {job.status}")
         job.status = AutomationJobStatus.FAILED
         job.completed_at = datetime.now(UTC)
-        job.worker_id = resolved_worker_id
+        job.worker_id = agent_name
         job.result_json = payload.result_json
         job.error = payload.error
         await self._record_result_activities(job, payload.result_json or {"error": payload.error}, ActivityStatus.FAILED)
@@ -247,15 +243,15 @@ class AutomationJobService:
             account.session_status = "failed"
         if job.campaign_id is not None:
             await self._update_campaign_status(job.campaign_id)
-        await self._upsert_worker(resolved_worker_id, status_value="IDLE", running_job=None)
+        await self._upsert_worker(agent_name, status_value="IDLE", running_job=None)
         await self.session.commit()
         await self.session.refresh(job)
         return job
 
-    async def record_heartbeat(self, worker_id: str, payload: WorkerHeartbeatUpdate) -> WorkerHeartbeatSummary:
-        """Persist a worker heartbeat and return dashboard-safe worker summary."""
+    async def record_heartbeat(self, agent_name: str, payload: WorkerHeartbeatUpdate) -> WorkerHeartbeatSummary:
+        """Persist Automation Agent heartbeat and return dashboard-safe runtime status."""
         await self._upsert_worker(
-            worker_id,
+            agent_name,
             hostname=payload.hostname,
             status_value=payload.status,
             running_job=payload.running_job,
@@ -264,13 +260,16 @@ class AutomationJobService:
         return await self.heartbeat()
 
     async def heartbeat(self) -> WorkerHeartbeatSummary:
-        """Return queue and active worker counts for dashboard status."""
-        workers = [self._worker_read(worker) for worker in await self.jobs.list_workers()]
+        """Return queue and single-agent heartbeat status for dashboard monitoring."""
+        settings = get_settings()
+        worker = await self.jobs.get_worker(settings.automation_agent_name)
+        workers = [self._worker_read(worker)] if worker is not None else []
         return WorkerHeartbeatSummary(
             active_workers=sum(1 for worker in workers if worker.online_status == "Online"),
             workers=workers,
             queued_jobs=await self.jobs.count(AutomationJobStatus.QUEUED),
             running_jobs=await self.jobs.count(AutomationJobStatus.RUNNING),
+            completed_jobs=await self.jobs.count(AutomationJobStatus.SUCCESS),
         )
 
     async def _payload(self, job: AutomationJob) -> AutomationJobPayload:
@@ -452,17 +451,6 @@ class AutomationJobService:
             worker.running_job = running_job
         await self.jobs.save_worker(worker)
         return worker
-
-    @staticmethod
-    def _resolve_worker_id(payload_worker_id: str | None, authenticated_worker_id: str) -> str:
-        if payload_worker_id is not None and payload_worker_id != authenticated_worker_id:
-            raise HTTPException(status.HTTP_403_FORBIDDEN, "Worker id does not match credentials")
-        return authenticated_worker_id
-
-    @staticmethod
-    def _assert_worker_owns_job(job: AutomationJob, worker_id: str) -> None:
-        if job.worker_id is not None and job.worker_id != worker_id:
-            raise HTTPException(status.HTTP_409_CONFLICT, "Job is owned by another worker")
 
     @staticmethod
     def _worker_read(worker: AutomationWorker) -> WorkerRead:

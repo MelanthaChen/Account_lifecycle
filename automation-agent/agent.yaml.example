@@ -1,5 +1,5 @@
-worker_id: local-agent-1
-worker_secret: replace-with-render-worker-secret
+agent_name: automation-agent
+agent_secret: replace-with-render-agent-secret
 backend_url: https://your-render-backend.onrender.com/api/v1
 poll_interval: 5
 heartbeat_interval: 30

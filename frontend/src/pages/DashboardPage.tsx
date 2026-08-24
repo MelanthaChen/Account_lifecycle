@@ -19,7 +19,7 @@ import { RecommendedActionsPanel } from "../components/dashboard/RecommendedActi
 import { UpcomingRunsPanel } from "../components/dashboard/UpcomingRunsPanel";
 import { useActivities } from "../hooks/useActivities";
 import { useAccounts } from "../hooks/useAccounts";
-import { useWorkerHeartbeat } from "../hooks/useAutomationJobs";
+import { useAutomationAgentHeartbeat } from "../hooks/useAutomationJobs";
 import { useBehaviorTemplates } from "../hooks/useBehaviorTemplates";
 import { useCampaigns, useRunCampaign } from "../hooks/useCampaigns";
 import { useEvaluateAllHealth, useHealth } from "../hooks/useHealth";
@@ -35,7 +35,7 @@ export function DashboardPage() {
   const health = useHealth();
   const recommendations = useRecommendations();
   const schedules = useSchedules();
-  const heartbeat = useWorkerHeartbeat();
+  const heartbeat = useAutomationAgentHeartbeat();
   const templates = useBehaviorTemplates();
   const runCampaign = useRunCampaign();
   const evaluateHealth = useEvaluateAllHealth();
@@ -48,7 +48,7 @@ export function DashboardPage() {
   const healthList = health.data ?? [];
   const recommendationList = recommendations.data ?? [];
   const scheduleList = schedules.data ?? [];
-  const workerStats = heartbeat.data;
+  const agentStats = heartbeat.data;
   const templateList = templates.data ?? [];
 
   const healthyAccounts = healthList.filter((record) => record.health_status === "HEALTHY").length;
@@ -157,24 +157,24 @@ export function DashboardPage() {
         />
         <DashboardMetricCard
           icon={RadioTower}
-          title="Active Workers"
-          value={`${workerStats?.active_workers ?? 0}`}
-          description="Local automation agents currently running jobs."
-          tone={workerStats?.active_workers ? "green" : "yellow"}
+          title="Automation Agent"
+          value={(agentStats?.active_workers ?? 0) > 0 ? "Online" : "Offline"}
+          description="Dedicated runtime for all browser automation."
+          tone={agentStats?.active_workers ? "green" : "yellow"}
         />
         <DashboardMetricCard
           icon={ListChecks}
           title="Queued Jobs"
-          value={`${workerStats?.queued_jobs ?? 0}`}
-          description="Automation jobs waiting for an agent."
-          tone={workerStats?.queued_jobs ? "yellow" : "green"}
+          value={`${agentStats?.queued_jobs ?? 0}`}
+          description="Automation jobs waiting for the runtime."
+          tone={agentStats?.queued_jobs ? "yellow" : "green"}
         />
         <DashboardMetricCard
           icon={Activity}
           title="Running Jobs"
-          value={`${workerStats?.running_jobs ?? 0}`}
-          description="Automation jobs currently owned by workers."
-          tone={workerStats?.running_jobs ? "blue" : "green"}
+          value={`${agentStats?.running_jobs ?? 0}`}
+          description="Automation jobs currently executing."
+          tone={agentStats?.running_jobs ? "blue" : "green"}
         />
       </div>
 
@@ -218,10 +218,11 @@ export function DashboardPage() {
         isLoading={campaigns.isLoading || schedules.isLoading}
       />
 
-      <WorkersPanel
-        workers={workerStats?.workers ?? []}
-        queuedJobs={workerStats?.queued_jobs ?? 0}
-        runningJobs={workerStats?.running_jobs ?? 0}
+      <AutomationAgentPanel
+        agent={agentStats?.workers[0] ?? null}
+        queuedJobs={agentStats?.queued_jobs ?? 0}
+        runningJobs={agentStats?.running_jobs ?? 0}
+        completedJobs={agentStats?.completed_jobs ?? 0}
         isLoading={heartbeat.isLoading}
         isError={heartbeat.isError}
       />
@@ -229,23 +230,25 @@ export function DashboardPage() {
   );
 }
 
-function WorkersPanel({
-  workers,
+function AutomationAgentPanel({
+  agent,
   queuedJobs,
   runningJobs,
+  completedJobs,
   isLoading,
   isError
 }: {
-  workers: Array<{
+  agent: {
     worker_id: string;
     hostname: string | null;
     last_seen: string;
     status: string;
     online_status: string;
     running_job: string | null;
-  }>;
+  } | null;
   queuedJobs: number;
   runningJobs: number;
+  completedJobs: number;
   isLoading: boolean;
   isError: boolean;
 }) {
@@ -253,25 +256,25 @@ function WorkersPanel({
     <section className="rounded-md border border-border bg-white p-5 shadow-sm">
       <div className="flex flex-col gap-2 border-b border-border pb-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-base font-semibold">Automation Workers</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Local agents connected to this backend.</p>
+          <h2 className="text-base font-semibold">Automation Agent</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Dedicated browser runtime connected to this backend.</p>
         </div>
         <div className="text-sm text-muted-foreground">
-          Queued {queuedJobs} · Running {runningJobs}
+          Queued {queuedJobs} · Running {runningJobs} · Completed {completedJobs}
         </div>
       </div>
       {isLoading ? (
-        <div className="py-6 text-sm text-muted-foreground">Loading workers...</div>
+        <div className="py-6 text-sm text-muted-foreground">Loading Automation Agent status...</div>
       ) : isError ? (
-        <div className="py-6 text-sm text-red-700">Unable to load workers.</div>
-      ) : workers.length === 0 ? (
-        <div className="py-6 text-sm text-muted-foreground">No workers have checked in yet.</div>
+        <div className="py-6 text-sm text-red-700">Unable to load Automation Agent status.</div>
+      ) : agent === null ? (
+        <div className="py-6 text-sm text-muted-foreground">Automation Agent has not checked in yet.</div>
       ) : (
         <div className="mt-4 overflow-x-auto">
           <table className="w-full min-w-[720px] text-left text-sm">
             <thead className="text-xs uppercase text-muted-foreground">
               <tr>
-                <th className="py-2 pr-4">Worker Name</th>
+                <th className="py-2 pr-4">Runtime</th>
                 <th className="py-2 pr-4">Online Status</th>
                 <th className="py-2 pr-4">Current Job</th>
                 <th className="py-2 pr-4">Last Heartbeat</th>
@@ -279,19 +282,17 @@ function WorkersPanel({
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {workers.map((worker) => (
-                <tr key={worker.worker_id}>
-                  <td className="py-2 pr-4 font-medium">{worker.worker_id}</td>
+                <tr>
+                  <td className="py-2 pr-4 font-medium">Automation Agent</td>
                   <td className="py-2 pr-4">
-                    <span className={worker.online_status === "Online" ? "text-emerald-700" : "text-red-700"}>
-                      {worker.status}
+                    <span className={agent.online_status === "Online" ? "text-emerald-700" : "text-red-700"}>
+                      {agent.status}
                     </span>
                   </td>
-                  <td className="py-2 pr-4">{worker.running_job ?? "Idle"}</td>
-                  <td className="py-2 pr-4">{new Date(worker.last_seen).toLocaleString()}</td>
-                  <td className="py-2 pr-4">{worker.hostname ?? "Unknown"}</td>
+                  <td className="py-2 pr-4">{agent.running_job ?? "Idle"}</td>
+                  <td className="py-2 pr-4">{new Date(agent.last_seen).toLocaleString()}</td>
+                  <td className="py-2 pr-4">{agent.hostname ?? "Unknown"}</td>
                 </tr>
-              ))}
             </tbody>
           </table>
         </div>

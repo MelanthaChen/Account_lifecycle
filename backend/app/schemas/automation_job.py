@@ -41,16 +41,14 @@ class AutomationJobPayload(AutomationJobRead):
 
 
 class AutomationJobStart(BaseModel):
-    worker_id: str | None = Field(default=None, max_length=120)
+    pass
 
 
 class AutomationJobFinish(BaseModel):
-    worker_id: str | None = Field(default=None, max_length=120)
     result_json: dict[str, Any] = Field(default_factory=dict)
 
 
 class AutomationJobFail(BaseModel):
-    worker_id: str | None = Field(default=None, max_length=120)
     error: str
     result_json: dict[str, Any] | None = None
 
@@ -75,3 +73,4 @@ class WorkerHeartbeatSummary(BaseModel):
     workers: list[WorkerRead]
     queued_jobs: int
     running_jobs: int
+    completed_jobs: int

@@ -15,14 +15,15 @@ export interface AutomationJob {
   error: string | null;
 }
 
-export interface WorkerHeartbeat {
+export interface AutomationAgentHeartbeat {
   active_workers: number;
-  workers: WorkerStatus[];
+  workers: AutomationAgentStatus[];
   queued_jobs: number;
   running_jobs: number;
+  completed_jobs: number;
 }
 
-export interface WorkerStatus {
+export interface AutomationAgentStatus {
   worker_id: string;
   hostname: string | null;
   last_seen: string;

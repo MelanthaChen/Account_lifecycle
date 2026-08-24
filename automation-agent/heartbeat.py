@@ -13,7 +13,7 @@ logger = logging.getLogger("automation-agent")
 
 
 class HeartbeatLoop:
-    """Periodically posts worker state to the backend."""
+    """Periodically posts single Automation Agent state to the backend."""
 
     def __init__(self, config: AgentConfig, api: AgentApiClient) -> None:
         self.config = config

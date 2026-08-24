@@ -1,6 +1,6 @@
 # Account Lifecycle Platform
 
-Account Lifecycle Platform is a full-stack control center for managing Reddit accounts, reusable behavior workflows, campaigns, health scoring, recommendations, activity history, scheduled campaign execution, and local browser automation workers.
+Account Lifecycle Platform is a full-stack control center for managing Reddit accounts, reusable behavior workflows, campaigns, health scoring, recommendations, activity history, scheduled campaign execution, and one dedicated Automation Agent.
 
 This is not a demo scaffold. The current implementation is a working Reddit-focused platform with a provider abstraction layer so future platforms can be added behind stable service boundaries.
 
@@ -16,7 +16,7 @@ The platform helps an operator answer:
 - Which accounts need attention?
 - Which campaign runs are scheduled next?
 
-The backend is intentionally browser-free. Browser automation runs in the standalone `automation-agent/` process, which polls queued jobs from the backend and owns Playwright, provider implementations, persistent browser profiles, and workflow execution.
+The backend is intentionally browser-free. Browser automation runs in one standalone `automation-agent/` process, which polls queued jobs from the backend and owns Playwright, provider implementations, persistent browser profiles, and workflow execution. All jobs are serialized through this single Automation Agent by design.
 
 ## Architecture Diagram
 
@@ -33,7 +33,8 @@ FastAPI backend
               |
               +-> APScheduler -> CampaignService -> WorkflowService -> enqueue jobs
 
-Local Automation Agent
+Automation Agent
+  single dedicated runtime
   polling loop -> backend jobs API
               -> ProviderManager -> RedditProvider
               -> Playwright persistent profile
@@ -59,7 +60,7 @@ storage/
 - Account CRUD for Reddit accounts.
 - Account detail workspace with Overview, Session, Activity, Publishing, Analytics, and Settings tabs.
 - PostgreSQL-backed automation job queue.
-- Standalone Automation Agent for Playwright execution.
+- Standalone single Automation Agent for Playwright execution.
 - Persistent Playwright browser profiles per account, owned by the agent.
 - Manual Reddit login/session runtime has moved out of the backend.
 - Browser session APIs remain present, but backend no longer launches browsers directly.
@@ -208,17 +209,18 @@ Local Automation Agent
 Playwright + local browser profiles
 ```
 
-Backend worker authentication uses request headers:
+Backend Automation Agent authentication uses request headers:
 
 ```text
-X-Worker-Id: local-agent-1
-X-Worker-Secret: <secret>
+X-Agent-Name: automation-agent
+X-Agent-Secret: <secret>
 ```
 
-Configure allowed workers on Render:
+Configure the single Automation Agent secret on Render:
 
 ```env
-AUTOMATION_WORKERS={"local-agent-1":"replace-with-strong-secret"}
+AUTOMATION_AGENT_NAME=automation-agent
+AUTOMATION_AGENT_SECRET=replace-with-strong-secret
 WORKER_OFFLINE_SECONDS=90
 ```
 
@@ -234,7 +236,8 @@ ENVIRONMENT=production
 API_V1_PREFIX=/api/v1
 DATABASE_URL=<Render or Neon PostgreSQL asyncpg URL>
 CORS_ALLOWED_ORIGINS=https://your-vercel-app.vercel.app,http://localhost:5173,http://localhost:5174
-AUTOMATION_WORKERS={"local-agent-1":"replace-with-strong-secret"}
+AUTOMATION_AGENT_NAME=automation-agent
+AUTOMATION_AGENT_SECRET=replace-with-strong-secret
 WORKER_OFFLINE_SECONDS=90
 ```
 
@@ -268,8 +271,8 @@ Edit:
 
 ```yaml
 backend_url: https://your-render-backend.onrender.com/api/v1
-worker_id: local-agent-1
-worker_secret: replace-with-strong-secret
+agent_name: automation-agent
+agent_secret: replace-with-strong-secret
 ```
 
 Then run:
@@ -303,7 +306,8 @@ ENVIRONMENT=local
 API_V1_PREFIX=/api/v1
 DATABASE_URL=postgresql+asyncpg://account:account@localhost:55432/account_intelligence
 CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174
-AUTOMATION_WORKERS={"local-agent-1":"change-me"}
+AUTOMATION_AGENT_NAME=automation-agent
+AUTOMATION_AGENT_SECRET=change-me
 WORKER_OFFLINE_SECONDS=90
 ```
 
@@ -325,8 +329,8 @@ backend/
   alembic/              migrations
 
 automation-agent/
-  main.py               local worker entrypoint
-  agent.yaml            worker/backend/profile configuration
+  main.py               Automation Agent entrypoint
+  agent.yaml            agent/backend/profile configuration
   providers/            ProviderManager and provider implementations
   browser/              browser runtime manager
   browser_sessions/     browser session protocols/results

@@ -16,8 +16,8 @@ class AgentApiClient:
             base_url=config.backend_url.rstrip("/"),
             timeout=httpx.Timeout(connect=10.0, read=60.0, write=30.0, pool=10.0),
             headers={
-                "X-Worker-Id": config.worker_id,
-                "X-Worker-Secret": config.worker_secret,
+                "X-Agent-Name": config.agent_name,
+                "X-Agent-Secret": config.agent_secret,
             },
         )
 
@@ -29,19 +29,18 @@ class AgentApiClient:
         return response.json()
 
     async def start_job(self, job_id: str) -> dict[str, Any]:
-        return await self._post(f"/jobs/{job_id}/start", {"worker_id": self.config.worker_id})
+        return await self._post(f"/jobs/{job_id}/start", {})
 
     async def finish_job(self, job_id: str, result_json: dict[str, Any]) -> dict[str, Any]:
         return await self._post(
             f"/jobs/{job_id}/finish",
-            {"worker_id": self.config.worker_id, "result_json": result_json},
+            {"result_json": result_json},
         )
 
     async def fail_job(self, job_id: str, error: str, result_json: dict[str, Any] | None = None) -> dict[str, Any]:
         return await self._post(
             f"/jobs/{job_id}/fail",
             {
-                "worker_id": self.config.worker_id,
                 "error": error,
                 "result_json": result_json,
             },
@@ -49,7 +48,7 @@ class AgentApiClient:
 
     async def heartbeat(self, *, hostname: str, status: str, running_job: str | None) -> dict[str, Any]:
         return await self._post(
-            "/workers/heartbeat",
+            "/agent/heartbeat",
             {"hostname": hostname, "status": status, "running_job": running_job},
         )
 

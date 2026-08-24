@@ -331,13 +331,12 @@ function JobSummary({ jobs }: { jobs: AutomationJob[] }) {
   const queued = jobs.filter((job) => job.status === "QUEUED").length;
   const running = jobs.filter((job) => job.status === "RUNNING").length;
   const completed = jobs.filter((job) => job.status === "SUCCESS").length;
-  const workers = Array.from(new Set(jobs.map((job) => job.worker_id).filter(Boolean)));
   return (
     <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
       <span>Queued {queued}</span>
       <span>Running {running}</span>
       <span>Completed {completed}</span>
-      <span>Worker {workers.length ? workers.join(", ") : "Unassigned"}</span>
+      <span>Automation Agent {running ? "Running" : "Idle"}</span>
     </div>
   );
 }
