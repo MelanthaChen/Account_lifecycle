@@ -1,6 +1,6 @@
 # Automation Agent
 
-The Automation Agent is the single dedicated browser runtime for the platform. It polls the FastAPI backend for queued automation jobs and executes workflow steps with Playwright.
+The Automation Agent is the local browser runtime for a researcher. It polls the FastAPI backend for queued automation jobs and executes workflow steps with Playwright.
 
 ```bash
 cd automation-agent
@@ -15,4 +15,4 @@ For a deployed backend, copy `agent.yaml.example` to `agent.yaml` and set:
 - `agent_name`: use `automation-agent`
 - `agent_secret`: the value configured in backend `AUTOMATION_AGENT_SECRET`
 
-The backend owns job state. The Automation Agent owns browser execution. Multiple users can use the web application, but all browser automation is intentionally serialized through this one runtime.
+The backend owns job state. The Automation Agent owns browser execution, persistent browser profiles, and Reddit sessions for the researcher running it.

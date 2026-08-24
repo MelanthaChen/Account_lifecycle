@@ -1,6 +1,6 @@
 # Account Lifecycle Platform
 
-Account Lifecycle Platform is a full-stack control center for managing Reddit accounts, reusable behavior workflows, campaigns, health scoring, recommendations, activity history, scheduled campaign execution, and one dedicated Automation Agent.
+Account Lifecycle Platform is a full-stack control center for managing Reddit accounts, reusable behavior workflows, campaigns, health scoring, recommendations, activity history, scheduled campaign execution, and researcher-run Automation Agents.
 
 This is not a demo scaffold. The current implementation is a working Reddit-focused platform with a provider abstraction layer so future platforms can be added behind stable service boundaries.
 
@@ -16,7 +16,7 @@ The platform helps an operator answer:
 - Which accounts need attention?
 - Which campaign runs are scheduled next?
 
-The backend is intentionally browser-free. Browser automation runs in one standalone `automation-agent/` process, which polls queued jobs from the backend and owns Playwright, provider implementations, persistent browser profiles, and workflow execution. All jobs are serialized through this single Automation Agent by design.
+The backend is intentionally browser-free. Browser automation runs in the standalone `automation-agent/` process, which polls queued jobs from the backend and owns Playwright, provider implementations, persistent browser profiles, and workflow execution. Each researcher who owns Reddit accounts should run one local Automation Agent on their own computer while automation is needed.
 
 ## Architecture Diagram
 
@@ -34,7 +34,7 @@ FastAPI backend
               +-> APScheduler -> CampaignService -> WorkflowService -> enqueue jobs
 
 Automation Agent
-  single dedicated runtime
+  local researcher runtime
   polling loop -> backend jobs API
               -> ProviderManager -> RedditProvider
               -> Playwright persistent profile
@@ -60,7 +60,7 @@ storage/
 - Account CRUD for Reddit accounts.
 - Account detail workspace with Overview, Session, Activity, Publishing, Analytics, and Settings tabs.
 - PostgreSQL-backed automation job queue.
-- Standalone single Automation Agent for Playwright execution.
+- Standalone Automation Agent for Playwright execution.
 - Persistent Playwright browser profiles per account, owned by the agent.
 - Manual Reddit login/session runtime has moved out of the backend.
 - Browser session APIs remain present, but backend no longer launches browsers directly.
@@ -189,6 +189,36 @@ uv run python main.py
 
 Agent settings live in `automation-agent/agent.yaml`.
 
+## Running The Automation Agent
+
+The Automation Agent should stay running while automation is needed. It is the local browser runtime that keeps Reddit sessions and Playwright profiles on the researcher's machine.
+
+Professor-friendly setup instructions are available in:
+
+```text
+docs/automation-agent-installation.md
+```
+
+Quick start:
+
+```bash
+cd automation-agent
+./install.sh
+uv run python main.py doctor
+uv run python main.py
+```
+
+On Windows PowerShell:
+
+```powershell
+cd automation-agent
+.\install.ps1
+uv run python main.py doctor
+uv run python main.py
+```
+
+When the terminal shows `Automation Agent Online`, the web application can create jobs and the local agent will execute them. If the terminal is closed, jobs remain queued until the agent starts again.
+
 ## Remote Agent Communication
 
 Production deployment uses the backend as a public job broker and the local agent as the private browser runtime.
@@ -216,7 +246,7 @@ X-Agent-Name: automation-agent
 X-Agent-Secret: <secret>
 ```
 
-Configure the single Automation Agent secret on Render:
+Configure the Automation Agent secret on Render:
 
 ```env
 AUTOMATION_AGENT_NAME=automation-agent

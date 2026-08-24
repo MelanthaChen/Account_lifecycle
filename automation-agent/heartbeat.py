@@ -6,7 +6,7 @@ import socket
 
 import httpx
 
-from api_client import AgentApiClient
+from api_client import AgentApiClient, AgentApiError
 from config import AgentConfig
 
 logger = logging.getLogger("automation-agent")
@@ -20,6 +20,7 @@ class HeartbeatLoop:
         self.api = api
         self.hostname = socket.gethostname()
         self.running_job: str | None = None
+        self.online = False
 
     async def run_forever(self) -> None:
         while True:
@@ -33,5 +34,6 @@ class HeartbeatLoop:
                 status="RUNNING" if self.running_job else "IDLE",
                 running_job=self.running_job,
             )
-        except (httpx.HTTPError, TimeoutError, OSError):
+            self.online = True
+        except (AgentApiError, httpx.HTTPError, TimeoutError, OSError):
             logger.warning("Heartbeat failed; will retry.")

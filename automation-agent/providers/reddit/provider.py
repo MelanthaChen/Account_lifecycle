@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
+from time import time
 from typing import Any
 
 from browser_sessions.base import BrowserSessionResult
@@ -14,6 +15,58 @@ from providers.reddit.session import RedditSessionProvider
 from runtime_types import AccountLike, Platform, WorkflowActionType
 
 logger = logging.getLogger(__name__)
+
+COMMENT_EDITOR_SELECTORS = [
+    'textarea[name="comment"]',
+    'textarea[placeholder*="comment" i]',
+    'textarea[aria-label*="comment" i]',
+    'textarea[data-testid*="comment" i]',
+    '[data-testid*="comment" i] textarea',
+    'div[contenteditable="true"][role="textbox"]',
+    'div[role="textbox"][contenteditable="true"]',
+    'div[contenteditable="true"][aria-label*="comment" i]',
+    'div[data-testid*="comment" i][contenteditable="true"]',
+    '[data-testid*="comment" i] div[contenteditable="true"]',
+    '.ProseMirror[contenteditable="true"]',
+    '.DraftEditor-editorContainer div[contenteditable="true"]',
+    '.public-DraftEditor-content[contenteditable="true"]',
+    'shreddit-composer div[contenteditable="true"]',
+    'shreddit-comment-composer div[contenteditable="true"]',
+    'comment-composer-host div[contenteditable="true"]',
+    'faceplate-form div[contenteditable="true"]',
+    '[slot="comment"] div[contenteditable="true"]',
+    '[role="textbox"][contenteditable="true"]',
+    '[contenteditable="true"]',
+]
+
+COMMENT_ENTRYPOINT_SELECTORS = [
+    'button:has-text("Add a comment")',
+    '[role="button"]:has-text("Add a comment")',
+    'button:has-text("Join the conversation")',
+    '[role="button"]:has-text("Join the conversation")',
+    'button[aria-label*="comment" i]',
+    'button[data-testid*="comment" i]',
+    '[data-testid*="comment" i]:has-text("Add a comment")',
+    '[aria-label*="Add a comment" i]',
+    '[placeholder*="Add a comment" i]',
+    'shreddit-comment-composer',
+    'comment-composer-host',
+    'shreddit-composer',
+]
+
+COMMENT_SUBMIT_SELECTORS = [
+    'button[type="submit"]:has-text("Comment")',
+    'button[type="submit"]:has-text("Reply")',
+    'button:has-text("Comment")',
+    'button:has-text("Reply")',
+    'shreddit-composer button[type="submit"]',
+    'shreddit-comment-composer button[type="submit"]',
+    'comment-composer-host button[type="submit"]',
+    'faceplate-form button[type="submit"]',
+    '[slot="submit-button"] button',
+    'button[aria-label*="comment" i]',
+    'button[aria-label*="reply" i]',
+]
 
 
 class RedditProvider:
@@ -269,14 +322,27 @@ class RedditProvider:
 
     async def _submit_comment(self, page: Any, *, account: AccountLike, comment_text: str) -> ProviderActionResult:
         logger.info("Finding Reddit comment editor for %s...", account.nickname)
-        editor = await self._find_comment_editor(page)
+        diagnostics: list[dict[str, Any]] = []
+        await self._wait_for_comment_page(page)
+        editor = await self._find_comment_editor_with_retries(page, diagnostics)
         if editor is None:
+            await self._open_collapsed_comment_editor(page, diagnostics)
+            editor = await self._find_comment_editor_with_retries(page, diagnostics)
+        if editor is None:
+            diagnostics_path = await self._save_comment_diagnostics(
+                page,
+                account=account,
+                reason="comment_editor_not_found",
+                diagnostics=diagnostics,
+            )
             return ProviderActionResult(
                 account=account.nickname,
                 opened=True,
                 clicked=False,
                 success=False,
                 reason="comment_editor_not_found",
+                detail=f"Diagnostics saved to {diagnostics_path}",
+                metadata={"diagnostics_path": str(diagnostics_path), "selector_diagnostics": diagnostics},
             )
 
         logger.info("Filling Reddit comment editor for %s...", account.nickname)
@@ -285,25 +351,43 @@ class RedditProvider:
             await editor.wait_for(state="visible", timeout=5_000)
             await editor.click(timeout=5_000)
             await self._fill_comment_editor(page, editor, comment_text)
+            if not await self._verify_editor_contains_text(page, editor, comment_text):
+                raise RuntimeError("comment text was not inserted into the editor")
         except Exception:
             logger.exception("Comment editor fill failed for account %s.", account.nickname)
+            diagnostics_path = await self._save_comment_diagnostics(
+                page,
+                account=account,
+                reason="comment_editor_failed",
+                diagnostics=diagnostics,
+            )
             return ProviderActionResult(
                 account=account.nickname,
                 opened=True,
                 clicked=False,
                 success=False,
                 reason="comment_editor_failed",
+                detail=f"Diagnostics saved to {diagnostics_path}",
+                metadata={"diagnostics_path": str(diagnostics_path), "selector_diagnostics": diagnostics},
             )
 
         logger.info("Finding Reddit comment submit button for %s...", account.nickname)
-        submit_button = await self._find_comment_submit_button(page)
+        submit_button = await self._find_comment_submit_button(page, diagnostics)
         if submit_button is None:
+            diagnostics_path = await self._save_comment_diagnostics(
+                page,
+                account=account,
+                reason="submit_button_not_found",
+                diagnostics=diagnostics,
+            )
             return ProviderActionResult(
                 account=account.nickname,
                 opened=True,
                 clicked=False,
                 success=False,
                 reason="submit_button_not_found",
+                detail=f"Diagnostics saved to {diagnostics_path}",
+                metadata={"diagnostics_path": str(diagnostics_path), "selector_diagnostics": diagnostics},
             )
 
         logger.info("Submitting Reddit comment for %s...", account.nickname)
@@ -313,12 +397,20 @@ class RedditProvider:
             await submit_button.click(timeout=5_000)
         except Exception:
             logger.exception("Comment submit failed for account %s.", account.nickname)
+            diagnostics_path = await self._save_comment_diagnostics(
+                page,
+                account=account,
+                reason="submit_failed",
+                diagnostics=diagnostics,
+            )
             return ProviderActionResult(
                 account=account.nickname,
                 opened=True,
                 clicked=False,
                 success=False,
                 reason="submit_failed",
+                detail=f"Diagnostics saved to {diagnostics_path}",
+                metadata={"diagnostics_path": str(diagnostics_path), "selector_diagnostics": diagnostics},
             )
 
         await page.wait_for_timeout(1_500)
@@ -334,47 +426,99 @@ class RedditProvider:
             metadata={"comment_length": len(comment_text)},
         )
 
-    async def _find_comment_editor(self, page: Any) -> Any | None:
-        selectors = [
-            'textarea[name="comment"]',
-            'textarea[placeholder*="comment" i]',
-            'textarea[aria-label*="comment" i]',
-            'div[contenteditable="true"][role="textbox"]',
-            'div[contenteditable="true"][aria-label*="comment" i]',
-            'shreddit-composer div[contenteditable="true"]',
-            'faceplate-form div[contenteditable="true"]',
-            'comment-composer-host div[contenteditable="true"]',
-            '[slot="comment"] div[contenteditable="true"]',
-            '[role="textbox"][contenteditable="true"]',
-        ]
-        for selector in selectors:
-            locator = page.locator(selector)
-            count = await locator.count()
-            for index in range(count):
-                candidate = locator.nth(index)
-                if await self._is_clickable(candidate):
-                    return candidate
+    async def _wait_for_comment_page(self, page: Any) -> None:
+        try:
+            await page.wait_for_load_state("domcontentloaded", timeout=15_000)
+        except Exception:
+            logger.info("Comment page domcontentloaded wait timed out; continuing.")
+        for selector in ["shreddit-post", 'a[href*="/comments/"]', "article", '[data-testid*="post" i]']:
+            try:
+                await page.locator(selector).first().wait_for(state="attached", timeout=5_000)
+                return
+            except Exception:
+                logger.info("Post readiness selector not found yet: %s", selector)
+
+    async def _find_comment_editor_with_retries(
+        self,
+        page: Any,
+        diagnostics: list[dict[str, Any]],
+    ) -> Any | None:
+        for attempt in range(1, 5):
+            logger.info("Comment editor discovery attempt %s.", attempt)
+            editor = await self._find_comment_editor(page, diagnostics, attempt=attempt)
+            if editor is not None:
+                return editor
+            await self._wait_for_comment_candidate(page)
         return None
 
-    async def _find_comment_submit_button(self, page: Any) -> Any | None:
-        selectors = [
-            'button[type="submit"]:has-text("Comment")',
-            'button[type="submit"]:has-text("Reply")',
-            'button:has-text("Comment")',
-            'button:has-text("Reply")',
-            'shreddit-composer button[type="submit"]',
-            'faceplate-form button[type="submit"]',
-            '[slot="submit-button"] button',
-            'button[aria-label*="comment" i]',
-            'button[aria-label*="reply" i]',
-        ]
-        for selector in selectors:
-            locator = page.locator(selector)
-            count = await locator.count()
-            for index in range(count):
-                candidate = locator.nth(index)
-                if await self._is_clickable(candidate):
-                    return candidate
+    async def _find_comment_editor(
+        self,
+        page: Any,
+        diagnostics: list[dict[str, Any]],
+        *,
+        attempt: int,
+    ) -> Any | None:
+        for selector in COMMENT_EDITOR_SELECTORS:
+            result = await self._selector_state(page, selector, attempt=attempt)
+            diagnostics.append({"kind": "editor", **result})
+            logger.info(
+                "Comment editor selector attempt=%s selector=%s count=%s visible=%s enabled=%s editable=%s",
+                attempt,
+                selector,
+                result["count"],
+                result["visible"],
+                result["enabled"],
+                result["editable"],
+            )
+            if result["count"] == 0:
+                continue
+            locator = page.locator(selector).first()
+            if await self._is_editable(locator):
+                return locator
+        return None
+
+    async def _open_collapsed_comment_editor(self, page: Any, diagnostics: list[dict[str, Any]]) -> None:
+        logger.info("Looking for collapsed Reddit comment entrypoint.")
+        for selector in COMMENT_ENTRYPOINT_SELECTORS:
+            result = await self._selector_state(page, selector, attempt=1)
+            diagnostics.append({"kind": "entrypoint", **result})
+            logger.info(
+                "Comment entrypoint selector=%s count=%s visible=%s enabled=%s editable=%s",
+                selector,
+                result["count"],
+                result["visible"],
+                result["enabled"],
+                result["editable"],
+            )
+            if result["count"] == 0:
+                continue
+            locator = page.locator(selector).first()
+            try:
+                if await self._is_clickable(locator):
+                    await locator.scroll_into_view_if_needed(timeout=5_000)
+                    await locator.click(timeout=5_000)
+                    await self._wait_for_comment_candidate(page)
+                    return
+            except Exception:
+                logger.info("Collapsed comment entrypoint click failed for selector: %s", selector)
+
+    async def _find_comment_submit_button(self, page: Any, diagnostics: list[dict[str, Any]]) -> Any | None:
+        for selector in COMMENT_SUBMIT_SELECTORS:
+            result = await self._selector_state(page, selector, attempt=1)
+            diagnostics.append({"kind": "submit", **result})
+            logger.info(
+                "Comment submit selector=%s count=%s visible=%s enabled=%s editable=%s",
+                selector,
+                result["count"],
+                result["visible"],
+                result["enabled"],
+                result["editable"],
+            )
+            if result["count"] == 0:
+                continue
+            locator = page.locator(selector).first()
+            if await self._is_clickable(locator):
+                return locator
         return None
 
     @staticmethod
@@ -383,7 +527,39 @@ class RedditProvider:
         if tag_name in {"textarea", "input"}:
             await editor.fill(comment_text)
             return
+        await editor.evaluate(
+            """(element) => {
+                element.focus();
+                if (element.textContent) {
+                    element.textContent = "";
+                }
+            }"""
+        )
         await page.keyboard.insert_text(comment_text)
+
+    @staticmethod
+    async def _verify_editor_contains_text(page: Any, editor: Any, comment_text: str) -> bool:
+        expected = " ".join(comment_text.split())
+        if not expected:
+            return False
+        try:
+            value = await editor.evaluate(
+                """(element) => {
+                    if ("value" in element) {
+                        return element.value || "";
+                    }
+                    return element.innerText || element.textContent || "";
+                }"""
+            )
+            if expected in " ".join(str(value).split()):
+                return True
+        except Exception:
+            logger.info("Direct editor text verification failed; falling back to page text.")
+        try:
+            await page.get_by_text(expected[:80], exact=False).first().wait_for(state="visible", timeout=3_000)
+            return True
+        except Exception:
+            return False
 
     @staticmethod
     async def _verify_comment_posted(page: Any, comment_text: str) -> bool:
@@ -399,6 +575,116 @@ class RedditProvider:
         except Exception:
             return False
         return False
+
+    @staticmethod
+    async def _wait_for_comment_candidate(page: Any) -> None:
+        for selector in [*COMMENT_EDITOR_SELECTORS, *COMMENT_ENTRYPOINT_SELECTORS]:
+            try:
+                await page.locator(selector).first().wait_for(state="attached", timeout=1_000)
+                return
+            except Exception as exc:
+                logger.debug("Comment candidate wait skipped selector=%s error=%s", selector, exc)
+                continue
+        try:
+            await page.wait_for_load_state("networkidle", timeout=1_000)
+        except Exception:
+            logger.info("No comment candidate appeared during retry wait.")
+
+    async def _selector_state(self, page: Any, selector: str, *, attempt: int) -> dict[str, Any]:
+        locator = page.locator(selector)
+        state: dict[str, Any] = {
+            "attempt": attempt,
+            "selector": selector,
+            "count": 0,
+            "visible": False,
+            "enabled": False,
+            "editable": False,
+        }
+        try:
+            state["count"] = await locator.count()
+        except Exception as exc:
+            state["error"] = str(exc)
+            return state
+
+        if state["count"] == 0:
+            return state
+
+        first = locator.first()
+        try:
+            state["visible"] = await first.is_visible(timeout=750)
+        except Exception as exc:
+            state["visible_error"] = str(exc)
+        try:
+            state["enabled"] = await first.is_enabled(timeout=750)
+        except Exception as exc:
+            state["enabled_error"] = str(exc)
+        state["editable"] = await self._is_editable(first)
+        return state
+
+    @staticmethod
+    async def _is_editable(locator: Any) -> bool:
+        try:
+            if not await locator.is_visible(timeout=750):
+                return False
+        except Exception:
+            return False
+
+        try:
+            if await locator.is_editable(timeout=750):
+                return True
+        except Exception:
+            logger.info("Playwright editability probe failed; checking DOM attributes.")
+
+        try:
+            return bool(
+                await locator.evaluate(
+                    """(element) => {
+                        const editable = element.getAttribute("contenteditable");
+                        const role = element.getAttribute("role");
+                        const tagName = element.tagName.toLowerCase();
+                        if (element.disabled || element.readOnly) {
+                            return false;
+                        }
+                        return editable === "true" || role === "textbox" || tagName === "textarea" || tagName === "input";
+                    }"""
+                )
+            )
+        except Exception:
+            return False
+
+    async def _save_comment_diagnostics(
+        self,
+        page: Any,
+        *,
+        account: AccountLike,
+        reason: str,
+        diagnostics: list[dict[str, Any]],
+    ) -> Path:
+        diagnostics_root = self.session.get_storage_directory(account) / "diagnostics" / "comment_failure"
+        diagnostics_path = diagnostics_root / f"{int(time())}_{reason}"
+        diagnostics_path.mkdir(parents=True, exist_ok=True)
+
+        screenshot_path = diagnostics_path / "page.png"
+        html_path = diagnostics_path / "page.html"
+        url_path = diagnostics_path / "url.txt"
+        selectors_path = diagnostics_path / "selectors.json"
+
+        try:
+            await page.screenshot(path=str(screenshot_path), full_page=True)
+        except Exception:
+            logger.exception("Failed to save comment failure screenshot.")
+        try:
+            html_path.write_text(await page.content(), encoding="utf-8")
+        except Exception:
+            logger.exception("Failed to save comment failure HTML.")
+        try:
+            url_path.write_text(page.url, encoding="utf-8")
+        except Exception:
+            logger.exception("Failed to save comment failure URL.")
+        selectors_path.write_text(json.dumps(diagnostics, indent=2, default=str), encoding="utf-8")
+
+        logger.info("Saved Reddit comment diagnostics to %s", diagnostics_path)
+        return diagnostics_path
 
     @staticmethod
     async def _restore_storage_state(context: Any, state_path: Path) -> None:

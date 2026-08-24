@@ -5,7 +5,7 @@ import logging
 
 import httpx
 
-from api_client import AgentApiClient
+from api_client import AgentApiClient, AgentApiError, BackendVersionError
 from config import AgentConfig
 from executor import WorkflowExecutor
 from heartbeat import HeartbeatLoop
@@ -23,7 +23,9 @@ class AutomationAgent:
         self.heartbeat = HeartbeatLoop(config, self.api)
 
     async def run_forever(self) -> None:
-        logger.info("Starting Automation Agent %s", self.config.agent_name)
+        self._print_connecting_banner()
+        await self.heartbeat.post_once()
+        self._print_online_banner()
         heartbeat_task = asyncio.create_task(self.heartbeat.run_forever())
         try:
             await self._poll_forever()
@@ -37,6 +39,10 @@ class AutomationAgent:
                 did_work = await self._poll_once()
                 backoff = self.config.poll_interval
                 await asyncio.sleep(0 if did_work else self.config.poll_interval)
+            except (AgentApiError, BackendVersionError) as exc:
+                print(f"\n{exc}\n")
+                await asyncio.sleep(backoff)
+                backoff = min(backoff * 2, 60)
             except (httpx.HTTPError, TimeoutError, OSError):
                 logger.warning("Backend unavailable; retrying in %.1f seconds.", backoff)
                 await asyncio.sleep(backoff)
@@ -70,3 +76,30 @@ class AutomationAgent:
         else:
             await self.api.fail_job(job_id, "workflow_failed", result)
         return True
+
+    def _print_connecting_banner(self) -> None:
+        print(
+            "\n".join(
+                [
+                    "==================================",
+                    "Automation Agent",
+                    f"Backend: {self.config.backend_url}",
+                    "Status: Connecting...",
+                    "==================================",
+                ]
+            )
+        )
+
+    def _print_online_banner(self) -> None:
+        print(
+            "\n".join(
+                [
+                    "Automation Agent",
+                    "Status: Online",
+                    f"Polling: Every {self.config.poll_interval:g} seconds",
+                    "Browser: Ready",
+                    "Queue: Waiting for jobs",
+                    "",
+                ]
+            )
+        )
