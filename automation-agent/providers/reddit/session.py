@@ -99,6 +99,8 @@ class RedditSessionProvider:
         logger.info("Launching persistent profile: %s", profile_directory)
         active_session = await self._open_persistent_context(account, headless=not account.launch_visible_browser)
         context = active_session.context
+        logger.info("Clearing existing Reddit cookies before manual login.")
+        await context.clear_cookies()
         page = context.pages[0] if context.pages else await context.new_page()
         await page.goto(self.login_url, wait_until="domcontentloaded")
         logger.info("Waiting for manual login...")

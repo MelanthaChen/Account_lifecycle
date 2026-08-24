@@ -152,9 +152,13 @@ class WorkflowExecutor:
         page = context.pages[0] if context.pages else await context.new_page()
         timeout_seconds = self.config.manual_login_timeout_seconds
         deadline = asyncio.get_running_loop().time() + timeout_seconds
+        initial_cookie = await self._reddit_session_cookie_value(context)
+        if initial_cookie:
+            logger.info("Existing Reddit session cookie found; waiting for a refreshed manual login signal.")
         logger.info("Waiting up to %.0f seconds for Reddit manual login.", timeout_seconds)
         while asyncio.get_running_loop().time() < deadline:
-            if await self._has_reddit_login_signal(context):
+            current_cookie = await self._reddit_session_cookie_value(context)
+            if current_cookie and current_cookie != initial_cookie:
                 logger.info("Detected authenticated Reddit session.")
                 return True
             if all(item.is_closed() for item in context.pages):
@@ -166,9 +170,12 @@ class WorkflowExecutor:
         return False
 
     @staticmethod
-    async def _has_reddit_login_signal(context: Any) -> bool:
+    async def _reddit_session_cookie_value(context: Any) -> str | None:
         cookies = await context.cookies("https://www.reddit.com/")
-        return any(cookie.get("name") == REDDIT_AUTH_COOKIE and cookie.get("value") for cookie in cookies)
+        for cookie in cookies:
+            if cookie.get("name") == REDDIT_AUTH_COOKIE and cookie.get("value"):
+                return str(cookie["value"])
+        return None
 
     @staticmethod
     async def _wait_for_browser_login_event(page: Any, timeout_seconds: float) -> None:
