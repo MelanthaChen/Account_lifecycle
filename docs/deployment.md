@@ -86,6 +86,14 @@ cp backend/.env.example backend/.env
 
 The backend reads `backend/.env` through `pydantic-settings`.
 
+For Render + Vercel, configure the deployed frontend origin explicitly:
+
+```env
+CORS_ALLOWED_ORIGINS=https://your-vercel-app.vercel.app,http://localhost:5173,http://localhost:5174
+```
+
+Do not use `*` because the backend enables credentialed CORS. Multiple origins are comma-separated and should not include trailing slashes.
+
 ## Backend Dependencies
 
 Create a Python virtual environment:

@@ -233,7 +233,7 @@ APP_NAME=Account Intelligence Platform
 ENVIRONMENT=production
 API_V1_PREFIX=/api/v1
 DATABASE_URL=<Render or Neon PostgreSQL asyncpg URL>
-CORS_ORIGINS=["https://your-vercel-app.vercel.app"]
+CORS_ALLOWED_ORIGINS=https://your-vercel-app.vercel.app,http://localhost:5173,http://localhost:5174
 AUTOMATION_WORKERS={"local-agent-1":"replace-with-strong-secret"}
 WORKER_OFFLINE_SECONDS=90
 ```
@@ -302,7 +302,7 @@ APP_NAME="Account Intelligence Platform"
 ENVIRONMENT=local
 API_V1_PREFIX=/api/v1
 DATABASE_URL=postgresql+asyncpg://account:account@localhost:55432/account_intelligence
-CORS_ORIGINS=["http://localhost:5174","http://127.0.0.1:5174"]
+CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174
 AUTOMATION_WORKERS={"local-agent-1":"change-me"}
 WORKER_OFFLINE_SECONDS=90
 ```
