@@ -79,6 +79,8 @@ class WorkflowExecutor:
 
     async def _execute_runtime_job(self, job: dict[str, Any], job_type: str) -> dict[str, Any]:
         account = self._account_object(job["account"])
+        if job_type == "UPVOTE":
+            return await self._standalone_upvote(job, account)
         if job_type == "SESSION_LOGIN":
             return await self._session_login(job, account)
         if job_type == "SESSION_VALIDATE":
@@ -121,6 +123,66 @@ class WorkflowExecutor:
             "account_id": job["account_id"],
             "job_type": job_type,
             "reason": "unsupported_job_type",
+        }
+
+    async def _standalone_upvote(self, job: dict[str, Any], account: Any) -> dict[str, Any]:
+        payload = job.get("result_json") if isinstance(job.get("result_json"), dict) else {}
+        target_url = str(payload.get("target_url") or "").strip()
+        logs = [{"message": f"Starting upvote job for {account.nickname}.", "level": "info"}]
+        if not target_url:
+            logs.append({"message": "Target URL is missing.", "level": "error"})
+            return {
+                "success": False,
+                "account_id": job["account_id"],
+                "job_type": "UPVOTE",
+                "target_url": target_url,
+                "logs": logs,
+                "result": {
+                    "account": account.nickname,
+                    "opened": False,
+                    "clicked": False,
+                    "verified": False,
+                    "reason": "target_url_required",
+                },
+            }
+
+        provider = provider_manager.get_provider(account.platform)
+        logs.extend(
+            [
+                {"message": f"Opening browser for {account.nickname}.", "level": "info"},
+                {"message": "Opening Reddit URL.", "level": "info"},
+                {"message": "Finding Upvote button.", "level": "info"},
+                {"message": "Clicking.", "level": "info"},
+                {"message": "Verifying.", "level": "info"},
+            ]
+        )
+        result = await provider.execute_action(account, WorkflowActionType.UPVOTE, target_url=target_url)
+        logs.append({"message": "Closing browser.", "level": "info"})
+        if result.opened and result.clicked:
+            logs.append(
+                {
+                    "message": "Upvote completed." if result.verified else "Upvote clicked; verification inconclusive.",
+                    "level": "success" if result.success else "warning",
+                }
+            )
+        else:
+            logs.append({"message": result.reason or "Upvote failed.", "level": "error"})
+
+        return {
+            "success": result.success,
+            "account_id": job["account_id"],
+            "job_type": "UPVOTE",
+            "target_url": target_url,
+            "logs": logs,
+            "result": {
+                "account": result.account,
+                "opened": result.opened,
+                "clicked": result.clicked,
+                "verified": result.verified,
+                "reason": result.reason,
+                "detail": result.detail,
+                "metadata": result.metadata,
+            },
         }
 
     async def _session_login(self, job: dict[str, Any], account: Any) -> dict[str, Any]:

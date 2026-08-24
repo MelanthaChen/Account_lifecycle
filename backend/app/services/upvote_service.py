@@ -1,60 +1,24 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-import logging
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.repositories.account_repository import AccountRepository
-
-logger = logging.getLogger(__name__)
-
-
-@dataclass
-class UpvoteExecutionResult:
-    account: str
-    opened: bool
-    clicked: bool
-    verified: bool
-    reason: str | None = None
+from app.models.automation_job import AutomationJob
+from app.services.automation_job_service import AutomationJobService
 
 
 class UpvoteService:
-    """Preserves the upvote API contract without launching backend browser automation."""
+    """Queues standalone upvote jobs for execution by the automation agent."""
 
     def __init__(self, session: AsyncSession) -> None:
-        self.accounts = AccountRepository(session)
+        self.jobs = AutomationJobService(session)
 
-    async def open_target_for_accounts(
+    async def enqueue(
         self,
         *,
         account_ids: list[UUID],
         target_url: str,
-    ) -> list[UpvoteExecutionResult]:
-        """Return non-executed results because provider actions run in the automation agent."""
-        results: list[UpvoteExecutionResult] = []
-        for account_id in account_ids:
-            account = await self.accounts.get(account_id)
-            if account is None:
-                results.append(
-                    UpvoteExecutionResult(
-                        account=str(account_id),
-                        opened=False,
-                        clicked=False,
-                        verified=False,
-                        reason="account_not_found",
-                    )
-                )
-                continue
-            logger.info("Upvote request accepted for agent-owned runtime: %s", target_url)
-            results.append(
-                UpvoteExecutionResult(
-                    account=account.nickname,
-                    opened=False,
-                    clicked=False,
-                    verified=False,
-                    reason="automation_agent_required",
-                )
-            )
-        return results
+    ) -> list[AutomationJob]:
+        """Create one queued upvote job per selected account."""
+        return await self.jobs.enqueue_upvote(account_ids=account_ids, target_url=target_url)

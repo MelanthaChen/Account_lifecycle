@@ -5,7 +5,8 @@ from pydantic import BaseModel, Field, HttpUrl, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_session
-from app.services.upvote_service import UpvoteService, UpvoteExecutionResult
+from app.models.enums import AutomationJobStatus
+from app.services.upvote_service import UpvoteService
 
 router = APIRouter(prefix="/upvote", tags=["upvote"])
 
@@ -23,17 +24,17 @@ class UpvoteRequest(BaseModel):
         return value
 
 
-class UpvoteResult(BaseModel):
+class UpvoteJob(BaseModel):
+    id: UUID
+    account_id: UUID
     account: str
-    opened: bool
-    clicked: bool
-    verified: bool
-    reason: str | None = None
+    status: AutomationJobStatus
 
 
 class UpvoteResponse(BaseModel):
     success: bool
-    results: list[UpvoteResult]
+    target_url: str
+    jobs: list[UpvoteJob]
 
 
 def service(session: AsyncSession = Depends(get_session)) -> UpvoteService:
@@ -45,21 +46,20 @@ async def create_upvote_request(
     payload: UpvoteRequest,
     upvote_service: UpvoteService = Depends(service),
 ) -> UpvoteResponse:
-    results = await upvote_service.open_target_for_accounts(
+    jobs = await upvote_service.enqueue(
         account_ids=payload.account_ids,
         target_url=str(payload.target_url),
     )
     return UpvoteResponse(
         success=True,
-        results=[_serialize_result(result) for result in results],
-    )
-
-
-def _serialize_result(result: UpvoteExecutionResult) -> UpvoteResult:
-    return UpvoteResult(
-        account=result.account,
-        opened=result.opened,
-        clicked=result.clicked,
-        verified=result.verified,
-        reason=result.reason,
+        target_url=str(payload.target_url),
+        jobs=[
+            UpvoteJob(
+                id=job.id,
+                account_id=job.account_id,
+                account=str(job.result_json.get("account") or job.account_id) if job.result_json else str(job.account_id),
+                status=job.status,
+            )
+            for job in jobs
+        ],
     )

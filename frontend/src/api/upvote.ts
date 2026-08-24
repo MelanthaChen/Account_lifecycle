@@ -6,16 +6,16 @@ export interface UpvoteRequest {
 }
 
 export interface UpvoteResult {
+  id: string;
+  account_id: string;
   account: string;
-  opened: boolean;
-  clicked: boolean;
-  verified: boolean;
-  reason: string | null;
+  status: "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED" | "CANCELLED";
 }
 
 export interface UpvoteResponse {
   success: boolean;
-  results: UpvoteResult[];
+  target_url: string;
+  jobs: UpvoteResult[];
 }
 
 export async function createUpvoteRequest(input: UpvoteRequest): Promise<UpvoteResponse> {

@@ -60,6 +60,10 @@ class AutomationJobService:
         """Return recent automation jobs."""
         return await self.jobs.list(limit=limit, status=status_filter)
 
+    async def get_job(self, job_id: UUID) -> AutomationJob:
+        """Return one automation job by id."""
+        return await self._get_job(job_id)
+
     async def create_job(self, payload: AutomationJobCreate) -> AutomationJob:
         """Create one queued automation job."""
         if payload.job_type == AutomationJobType.WORKFLOW:
@@ -78,6 +82,35 @@ class AutomationJobService:
         await self.session.commit()
         await self.session.refresh(job)
         return job
+
+    async def enqueue_upvote(self, *, account_ids: list[UUID], target_url: str) -> list[AutomationJob]:
+        """Create standalone upvote jobs for execution by an external automation agent."""
+        jobs: list[AutomationJob] = []
+        for account_id in account_ids:
+            account = await self._get_account(account_id)
+            jobs.append(
+                await self.jobs.create(
+                    AutomationJob(
+                        account_id=account.id,
+                        job_type=AutomationJobType.UPVOTE,
+                        status=AutomationJobStatus.QUEUED,
+                        result_json={
+                            "target_url": target_url,
+                            "account": account.nickname,
+                            "logs": [
+                                {
+                                    "message": f"Queued upvote job for {account.nickname}.",
+                                    "level": "info",
+                                }
+                            ],
+                        },
+                    )
+                )
+            )
+        await self.session.commit()
+        for job in jobs:
+            await self.session.refresh(job)
+        return jobs
 
     async def enqueue_campaign(self, campaign_id: UUID) -> list[AutomationJob]:
         """Create one queued job for each account assigned to a campaign."""

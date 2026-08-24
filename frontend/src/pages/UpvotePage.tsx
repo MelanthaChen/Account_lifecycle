@@ -1,13 +1,15 @@
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { AlertCircle, CheckCircle2, Clock3, ExternalLink, Loader2, Send, ThumbsUp } from "lucide-react";
 
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { useAccounts } from "../hooks/useAccounts";
+import { useAutomationJobs } from "../hooks/useAutomationJobs";
 import { useCreateUpvoteRequest } from "../hooks/useUpvote";
 import { cn } from "../lib/utils";
 import { useToast } from "../store/useToast";
 import type { Account } from "../types/account";
+import type { AutomationJob } from "../types/automationJob";
 
 interface LogEntry {
   id: number;
@@ -18,9 +20,12 @@ interface LogEntry {
 export function UpvotePage() {
   const accounts = useAccounts();
   const createRequest = useCreateUpvoteRequest();
+  const automationJobs = useAutomationJobs({ limit: 200 });
   const { notify } = useToast();
   const [targetUrl, setTargetUrl] = useState("");
   const [accountIds, setAccountIds] = useState<string[]>([]);
+  const [jobIds, setJobIds] = useState<string[]>([]);
+  const [queuedJobs, setQueuedJobs] = useState<AutomationJob[]>([]);
   const [lastStatus, setLastStatus] = useState<"idle" | "running" | "success" | "error">("idle");
   const [logs, setLogs] = useState<LogEntry[]>([
     {
@@ -36,6 +41,32 @@ export function UpvotePage() {
   );
   const selectedAccounts = activeAccounts.filter((account) => accountIds.includes(account.id));
   const allSelected = activeAccounts.length > 0 && selectedAccounts.length === activeAccounts.length;
+  const trackedJobs = useMemo(() => {
+    if (jobIds.length === 0) {
+      return [];
+    }
+    const latestJobs = automationJobs.data ?? [];
+    return jobIds.map((jobId) => latestJobs.find((job) => job.id === jobId) ?? queuedJobs.find((job) => job.id === jobId)).filter(Boolean) as AutomationJob[];
+  }, [automationJobs.data, jobIds, queuedJobs]);
+
+  useEffect(() => {
+    if (jobIds.length === 0 || trackedJobs.length === 0) {
+      return;
+    }
+
+    setLogs(buildJobLogs(trackedJobs));
+    const allFinished = trackedJobs.every((job) => ["SUCCESS", "FAILED", "CANCELLED"].includes(job.status));
+    if (!allFinished) {
+      setLastStatus("running");
+      return;
+    }
+
+    const allSucceeded = trackedJobs.every((job) => {
+      const result = readUpvoteResult(job);
+      return job.status === "SUCCESS" && result?.opened === true && result?.clicked === true;
+    });
+    setLastStatus(allSucceeded ? "success" : "error");
+  }, [jobIds.length, trackedJobs]);
 
   function appendLog(message: string, tone: LogEntry["tone"] = "default") {
     setLogs((current) => [{ id: Date.now() + Math.random(), message, tone }, ...current].slice(0, 40));
@@ -64,14 +95,7 @@ export function UpvotePage() {
     }
 
     setLastStatus("running");
-    appendLog("Starting...");
-    selectedAccounts.forEach((account) => {
-      appendLog(`Opening browser for ${account.nickname}...`);
-      appendLog("Opening Reddit URL...");
-      appendLog("Finding Upvote button...");
-      appendLog("Clicking...");
-      appendLog("Verifying...");
-    });
+    setLogs([{ id: Date.now(), message: "Creating automation jobs...", tone: "default" }]);
     createRequest.mutate(
       {
         account_ids: accountIds,
@@ -79,22 +103,27 @@ export function UpvotePage() {
       },
       {
         onSuccess: (response) => {
-          const allSucceeded = response.results.every((result) => result.opened && result.clicked);
-          setLastStatus(allSucceeded ? "success" : "error");
-          response.results.forEach((result) => {
-            if (result.opened && result.clicked && result.verified) {
-              appendLog(`Success for ${result.account}.`, "success");
-            } else if (result.opened && result.clicked) {
-              appendLog(`Clicked for ${result.account}, but verification was inconclusive.`, "default");
-            } else {
-              appendLog(`${formatReason(result.reason)} for ${result.account}.`, "error");
-            }
-            appendLog(`Closing browser for ${result.account}...`, result.opened ? "success" : "default");
-          });
-          notify(
-            allSucceeded ? "Upvote execution completed." : "Some accounts could not upvote.",
-            allSucceeded ? "success" : "error"
-          );
+          const jobs = response.jobs.map((job) => ({
+            ...job,
+            job_type: "UPVOTE",
+            campaign_id: null,
+            workflow_id: null,
+            queued_at: new Date().toISOString(),
+            started_at: null,
+            completed_at: null,
+            worker_id: null,
+            result_json: {
+              target_url: response.target_url,
+              account: job.account,
+              logs: [{ message: `Queued upvote job for ${job.account}.`, level: "info" }]
+            },
+            error: null
+          }));
+          setQueuedJobs(jobs);
+          setJobIds(response.jobs.map((job) => job.id));
+          setLogs(buildJobLogs(jobs));
+          notify("Upvote jobs queued for the automation agent.", "success");
+          void automationJobs.refetch();
         },
         onError: () => {
           setLastStatus("error");
@@ -302,4 +331,93 @@ function formatReason(reason: string | null) {
     account_not_found: "Account not found"
   };
   return reason ? (labels[reason] ?? reason) : "Execution failed";
+}
+
+function buildJobLogs(jobs: AutomationJob[]): LogEntry[] {
+  const entries: LogEntry[] = jobs.flatMap((job) => {
+    const account = readAccountName(job);
+    const payloadLogs = readPayloadLogs(job);
+    if (payloadLogs.length > 0) {
+      return payloadLogs.map((entry, index) => ({
+        id: stableLogId(job.id, index),
+        message: `${account}: ${entry.message}`,
+        tone: logTone(entry.level)
+      }));
+    }
+    return [
+      {
+        id: stableLogId(job.id, 0),
+        message: `${account}: ${job.status.toLowerCase()}.`,
+        tone: job.status === "FAILED" || job.status === "CANCELLED" ? "error" : "default"
+      }
+    ];
+  });
+  return entries.reverse();
+}
+
+function readPayloadLogs(job: AutomationJob): Array<{ message: string; level?: string }> {
+  const logs = job.result_json?.logs;
+  if (!Array.isArray(logs)) {
+    if (job.status === "RUNNING") {
+      return [{ message: "Automation agent is running this job.", level: "info" }];
+    }
+    if (job.status === "QUEUED") {
+      return [{ message: "Waiting for an automation agent.", level: "info" }];
+    }
+    if (job.error) {
+      return [{ message: job.error, level: "error" }];
+    }
+    return [];
+  }
+  const parsedLogs: Array<{ message: string; level?: string }> = [];
+  logs.forEach((entry) => {
+    if (!entry || typeof entry !== "object") {
+      return;
+    }
+      const value = entry as Record<string, unknown>;
+      const message = String(value.message ?? "");
+      if (!message) {
+        return;
+      }
+      parsedLogs.push({
+        message: String(value.message ?? ""),
+        level: typeof value.level === "string" ? value.level : undefined
+      });
+  });
+  return parsedLogs;
+}
+
+function readUpvoteResult(job: AutomationJob) {
+  const result = job.result_json?.result;
+  if (!result || typeof result !== "object") {
+    return null;
+  }
+  return result as { opened?: boolean; clicked?: boolean; verified?: boolean; reason?: string | null };
+}
+
+function readAccountName(job: AutomationJob) {
+  const result = readUpvoteResult(job);
+  if (result && "account" in result && typeof result.account === "string") {
+    return result.account;
+  }
+  const account = job.result_json?.account;
+  return typeof account === "string" ? account : job.account_id;
+}
+
+function logTone(level?: string): LogEntry["tone"] {
+  if (level === "success") {
+    return "success";
+  }
+  if (level === "error") {
+    return "error";
+  }
+  return "default";
+}
+
+function stableLogId(jobId: string, index: number) {
+  let total = index;
+  for (const character of jobId) {
+    total = (total * 31 + character.charCodeAt(0)) % Number.MAX_SAFE_INTEGER;
+  }
+  return total;
 }

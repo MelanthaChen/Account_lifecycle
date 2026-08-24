@@ -68,6 +68,14 @@ async def get_next_job(
     return job
 
 
+@router.get("/jobs/{job_id}", response_model=AutomationJobRead)
+async def get_job(
+    job_id: UUID,
+    jobs: AutomationJobService = Depends(service),
+) -> AutomationJobRead:
+    return await jobs.get_job(job_id)
+
+
 @router.post("/jobs/{job_id}/start", response_model=AutomationJobRead)
 async def start_job(
     job_id: UUID,
