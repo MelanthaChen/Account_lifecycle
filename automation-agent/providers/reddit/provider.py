@@ -328,8 +328,9 @@ class RedditProvider:
             opened=True,
             clicked=True,
             verified=verified,
-            success=True,
-            detail="Submitted" if verified else "Submitted; verification unavailable",
+            success=verified,
+            reason=None if verified else "verification_failed",
+            detail="Submitted and verified" if verified else "Submitted; verification failed",
             metadata={"comment_length": len(comment_text)},
         )
 

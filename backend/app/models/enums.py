@@ -111,6 +111,7 @@ class AutomationJobStatus(StrEnum):
 class AutomationJobType(StrEnum):
     WORKFLOW = "WORKFLOW"
     UPVOTE = "UPVOTE"
+    COMMENT = "COMMENT"
     SESSION_LOGIN = "SESSION_LOGIN"
     SESSION_VALIDATE = "SESSION_VALIDATE"
     SESSION_REFRESH = "SESSION_REFRESH"

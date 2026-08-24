@@ -112,6 +112,45 @@ class AutomationJobService:
             await self.session.refresh(job)
         return jobs
 
+    async def enqueue_comment(
+        self,
+        *,
+        account_ids: list[UUID],
+        target_url: str,
+        comment_text: str,
+    ) -> list[AutomationJob]:
+        """Create standalone comment jobs for execution by an external automation agent."""
+        jobs: list[AutomationJob] = []
+        for account_id in account_ids:
+            account = await self._get_account(account_id)
+            jobs.append(
+                await self.jobs.create(
+                    AutomationJob(
+                        account_id=account.id,
+                        job_type=AutomationJobType.COMMENT,
+                        status=AutomationJobStatus.QUEUED,
+                        result_json={
+                            "type": AutomationJobType.COMMENT.value,
+                            "payload": {
+                                "url": target_url,
+                                "text": comment_text,
+                            },
+                            "account": account.nickname,
+                            "logs": [
+                                {
+                                    "message": f"Queued comment job for {account.nickname}.",
+                                    "level": "info",
+                                }
+                            ],
+                        },
+                    )
+                )
+            )
+        await self.session.commit()
+        for job in jobs:
+            await self.session.refresh(job)
+        return jobs
+
     async def enqueue_campaign(self, campaign_id: UUID) -> list[AutomationJob]:
         """Create one queued job for each account assigned to a campaign."""
         campaign = await self._get_campaign(campaign_id)

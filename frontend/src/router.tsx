@@ -7,6 +7,7 @@ import { AccountsPage } from "./pages/AccountsPage";
 import { AnalyticsPage } from "./pages/AnalyticsPage";
 import { CampaignsPage } from "./pages/CampaignsPage";
 import { CampaignDetailPage } from "./pages/CampaignDetailPage";
+import { CommentPage } from "./pages/CommentPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { BehaviorLibraryPage } from "./pages/BehaviorLibraryPage";
 import { HealthPage } from "./pages/HealthPage";
@@ -25,6 +26,7 @@ export const router = createBrowserRouter([
       { path: "accounts/:accountId", element: <AccountDetailPage /> },
       { path: "activity", element: <ActivityPage /> },
       { path: "upvote", element: <UpvotePage /> },
+      { path: "comment", element: <CommentPage /> },
       { path: "campaigns", element: <CampaignsPage /> },
       { path: "campaigns/:campaignId", element: <CampaignDetailPage /> },
       { path: "behavior-library", element: <BehaviorLibraryPage /> },

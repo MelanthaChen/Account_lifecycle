@@ -9,6 +9,7 @@ import {
   Lightbulb,
   Settings,
   ShieldCheck,
+  MessageSquare,
   ThumbsUp,
   Users
 } from "lucide-react";
@@ -20,6 +21,7 @@ const navigation = [
   { label: "Accounts", path: "/accounts", icon: Users },
   { label: "Activity", path: "/activity", icon: Activity },
   { label: "Upvote", path: "/upvote", icon: ThumbsUp },
+  { label: "Comment", path: "/comment", icon: MessageSquare },
   { label: "Campaigns", path: "/campaigns", icon: ClipboardList },
   { label: "Behavior Library", path: "/behavior-library", icon: BookOpen },
   { label: "Health", path: "/health", icon: HeartPulse },
@@ -33,6 +35,7 @@ const pageTitles: Record<string, string> = {
   "/accounts": "Accounts",
   "/activity": "Activity",
   "/upvote": "Upvote",
+  "/comment": "Comment",
   "/campaigns": "Campaigns",
   "/behavior-library": "Behavior Library",
   "/health": "Health",

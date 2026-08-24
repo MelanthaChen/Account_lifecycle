@@ -81,6 +81,8 @@ class WorkflowExecutor:
         account = self._account_object(job["account"])
         if job_type == "UPVOTE":
             return await self._standalone_upvote(job, account)
+        if job_type == "COMMENT":
+            return await self._standalone_comment(job, account)
         if job_type == "SESSION_LOGIN":
             return await self._session_login(job, account)
         if job_type == "SESSION_VALIDATE":
@@ -182,6 +184,83 @@ class WorkflowExecutor:
                 "reason": result.reason,
                 "detail": result.detail,
                 "metadata": result.metadata,
+            },
+        }
+
+    async def _standalone_comment(self, job: dict[str, Any], account: Any) -> dict[str, Any]:
+        payload = job.get("result_json") if isinstance(job.get("result_json"), dict) else {}
+        action_payload = payload.get("payload") if isinstance(payload.get("payload"), dict) else {}
+        target_url = str(action_payload.get("url") or payload.get("target_url") or "").strip()
+        comment_text = str(action_payload.get("text") or payload.get("comment_text") or "").strip()
+        logs = [{"message": f"Starting comment job for {account.nickname}.", "level": "info"}]
+        if not target_url:
+            logs.append({"message": "Target URL is missing.", "level": "error"})
+            return self._comment_job_result(job, account, target_url, logs, reason="target_url_required")
+        if not comment_text:
+            logs.append({"message": "Comment text is missing.", "level": "error"})
+            return self._comment_job_result(job, account, target_url, logs, reason="comment_text_required")
+
+        provider = provider_manager.get_provider(account.platform)
+        logs.extend(
+            [
+                {"message": f"Opening browser for {account.nickname}.", "level": "info"},
+                {"message": "Opening Reddit URL.", "level": "info"},
+                {"message": "Finding comment editor.", "level": "info"},
+                {"message": "Filling comment text.", "level": "info"},
+                {"message": "Submitting comment.", "level": "info"},
+                {"message": "Verifying submitted comment.", "level": "info"},
+            ]
+        )
+        result = await provider.execute_action(
+            account,
+            WorkflowActionType.COMMENT,
+            target_url=target_url,
+            config={"comment_text": comment_text},
+        )
+        logs.append({"message": "Closing browser.", "level": "info"})
+        if result.success and result.verified:
+            logs.append({"message": "Comment submitted and verified.", "level": "success"})
+        else:
+            logs.append({"message": result.reason or "Comment verification failed.", "level": "error"})
+
+        return {
+            "success": result.success and result.verified,
+            "account_id": job["account_id"],
+            "job_type": "COMMENT",
+            "target_url": target_url,
+            "logs": logs,
+            "result": {
+                "account": result.account,
+                "opened": result.opened,
+                "clicked": result.clicked,
+                "verified": result.verified,
+                "reason": result.reason,
+                "detail": result.detail,
+                "metadata": result.metadata,
+            },
+        }
+
+    @staticmethod
+    def _comment_job_result(
+        job: dict[str, Any],
+        account: Any,
+        target_url: str,
+        logs: list[dict[str, str]],
+        *,
+        reason: str,
+    ) -> dict[str, Any]:
+        return {
+            "success": False,
+            "account_id": job["account_id"],
+            "job_type": "COMMENT",
+            "target_url": target_url,
+            "logs": logs,
+            "result": {
+                "account": account.nickname,
+                "opened": False,
+                "clicked": False,
+                "verified": False,
+                "reason": reason,
             },
         }
 
