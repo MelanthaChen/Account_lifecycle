@@ -251,9 +251,20 @@ APScheduler loads enabled schedules when the backend starts.
 
 ## Docker Notes
 
-`docker compose up --build` builds the backend and frontend containers plus PostgreSQL. For browser automation workflows, local non-container backend development is currently easier because Playwright browser dependencies and visible browser windows are host-sensitive.
+`docker compose up --build` builds the backend and frontend containers plus PostgreSQL.
 
-If using Docker for backend browser execution, ensure the image has Playwright browser binaries and OS dependencies installed.
+The backend image uses `/app/docker-entrypoint.sh` as its startup command:
+
+```text
+alembic upgrade head
+uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
+```
+
+This guarantees an empty PostgreSQL database is initialized before FastAPI starts and before APScheduler loads `campaign_schedules`. If Alembic fails, the container exits immediately.
+
+Render sets `PORT` automatically. Local Docker runs use port `8000` by default unless `PORT` is provided.
+
+Browser automation does not run inside the backend container. Playwright and provider runtime execution belong to the standalone `automation-agent/` process.
 
 ## Production Notes
 

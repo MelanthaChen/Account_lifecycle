@@ -240,7 +240,9 @@ WORKER_OFFLINE_SECONDS=90
 
 Neon URLs such as `postgresql+asyncpg://.../neondb?sslmode=require` are supported as-is. The backend translates `sslmode=require` into asyncpg-compatible SSL settings at startup and during Alembic migrations.
 
-Run migrations against the Render database:
+The backend Docker image runs `alembic upgrade head` before starting Uvicorn. If migrations fail, the container exits immediately instead of starting against a partial schema. Render injects `PORT`, and the container uses that value automatically.
+
+To run migrations manually outside Docker:
 
 ```bash
 cd backend

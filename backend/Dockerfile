@@ -1,13 +1,26 @@
 FROM python:3.12-slim
 
 WORKDIR /app
-ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
 
-COPY pyproject.toml .
+RUN addgroup --system app && adduser --system --ingroup app app
+
+COPY pyproject.toml ./
+
+RUN pip install --upgrade pip setuptools wheel
+
 COPY app ./app
 COPY alembic ./alembic
 COPY alembic.ini .
+COPY docker-entrypoint.sh ./docker-entrypoint.sh
 
-RUN pip install --no-cache-dir .
+RUN pip install . \
+    && chmod +x /app/docker-entrypoint.sh \
+    && chown -R app:app /app
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+USER app
+EXPOSE 8000
+
+CMD ["/app/docker-entrypoint.sh"]
