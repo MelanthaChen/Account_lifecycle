@@ -44,7 +44,7 @@ class AutomationAgent:
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2, 60)
             except (httpx.HTTPError, TimeoutError, OSError):
-                logger.warning("Backend unavailable; retrying in %.1f seconds.", backoff)
+                print(f"Cannot reach backend. Retrying in {backoff:.0f} seconds...")
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2, 60)
             except Exception:
@@ -96,9 +96,11 @@ class AutomationAgent:
                 [
                     "Automation Agent",
                     "Status: Online",
+                    "Heartbeat: OK",
                     f"Polling: Every {self.config.poll_interval:g} seconds",
                     "Browser: Ready",
                     "Queue: Waiting for jobs",
+                    "Keep this window open while automation is running.",
                     "",
                 ]
             )

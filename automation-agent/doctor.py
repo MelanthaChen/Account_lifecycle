@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import asyncio
+import shutil
+import sys
 from pathlib import Path
 
 import httpx
@@ -20,7 +23,11 @@ class Doctor:
         self.failed = 0
 
     async def run(self) -> int:
-        print("Automation Agent Doctor\n")
+        print("Automation Agent Doctor")
+        print(f"Backend: {self.config.backend_url}\n")
+        await self._check("Python 3.12+", self._python_version)
+        await self._check("uv", self._uv)
+        await self._check("Dependencies", self._dependencies)
         await self._check("Backend reachable", self._backend_reachable)
         await self._check("Authentication", self._authentication)
         await self._check("Heartbeat", self._heartbeat)
@@ -30,6 +37,7 @@ class Doctor:
         await self._check("Storage directory", self._storage_directory)
         await self._check("Profile directory", self._profile_directory)
         await self._check("Reddit provider", self._reddit_provider)
+        await self._check("Browser launch", self._browser_launch)
 
         print("\nSummary")
         print(f"Passed: {self.passed}")
@@ -49,6 +57,30 @@ class Doctor:
             return
         self.passed += 1
         print(f"✓ {label}")
+
+    async def _python_version(self) -> None:
+        current = tuple(int(part) for part in sys.version.split()[0].split(".")[:2])
+        if current < (3, 12):
+            raise RuntimeError(f"Python 3.12 or newer is required. Current: {sys.version.split()[0]}")
+
+    async def _uv(self) -> None:
+        if shutil.which("uv") is None:
+            raise RuntimeError("uv is not installed. Double-click Install.command.")
+
+    async def _dependencies(self) -> None:
+        process = await asyncio.create_subprocess_exec(
+            "uv",
+            "run",
+            "python",
+            "-c",
+            "import httpx, yaml, playwright",
+            cwd=Path(__file__).resolve().parent,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        await process.communicate()
+        if process.returncode != 0:
+            raise RuntimeError("Python dependencies are missing. Double-click Install.command.")
 
     async def _backend_reachable(self) -> None:
         async with httpx.AsyncClient(timeout=10.0) as client:
@@ -89,6 +121,18 @@ class Doctor:
 
     async def _reddit_provider(self) -> None:
         provider_manager.get_provider(Platform.REDDIT)
+
+    async def _browser_launch(self) -> None:
+        from playwright.async_api import async_playwright
+
+        playwright = await async_playwright().start()
+        try:
+            browser = await playwright.chromium.launch(headless=True)
+            page = await browser.new_page()
+            await page.goto("about:blank")
+            await browser.close()
+        finally:
+            await playwright.stop()
 
     @staticmethod
     def _assert_writable(path: Path) -> None:

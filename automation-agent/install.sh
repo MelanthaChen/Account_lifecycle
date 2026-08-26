@@ -3,7 +3,11 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
-echo "Automation Agent installer"
+mkdir -p logs
+
+echo "===================================="
+echo "Automation Agent Installer"
+echo "===================================="
 echo "Checking Python..."
 if ! command -v python3 >/dev/null 2>&1; then
   echo "Python 3.12 or newer is required. Install it from https://www.python.org/downloads/"
@@ -24,7 +28,7 @@ if ! command -v uv >/dev/null 2>&1; then
 fi
 
 echo "Installing Python dependencies..."
-uv sync --extra dev
+uv sync
 
 echo "Installing Playwright Chromium..."
 uv run playwright install chromium
@@ -34,16 +38,17 @@ if [ ! -f agent.yaml ]; then
   echo "Created agent.yaml from agent.yaml.example"
 fi
 
+echo
+echo "Running setup doctor..."
+uv run python main.py doctor || true
+
 cat <<'EOF'
 
-Next steps:
-1. Open automation-agent/agent.yaml.
-2. Set backend_url to your Render backend ending in /api/v1.
-3. Set agent_name and agent_secret from your platform administrator.
-4. Run diagnostics:
-   uv run python main.py doctor
-5. Start the Automation Agent:
-   ./run.sh
+Installation finished.
+
+Next step:
+Double-click Run.command, or run:
+./run.sh
 
 Keep this terminal open while automation jobs are running.
 EOF

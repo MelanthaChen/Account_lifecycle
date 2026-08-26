@@ -32,7 +32,7 @@ class AgentApiClient:
         )
 
     async def next_job(self) -> dict[str, Any] | None:
-        response = await self.client.get("/jobs/next")
+        response = await self._request("GET", "/jobs/next")
         if response.status_code == 204:
             return None
         self._raise_for_status(response)
@@ -63,9 +63,32 @@ class AgentApiClient:
         )
 
     async def _post(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
-        response = await self.client.post(path, json=payload)
+        response = await self._request("POST", path, json=payload)
         self._raise_for_status(response)
         return response.json()
+
+    async def _request(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
+        try:
+            return await self.client.request(method, path, **kwargs)
+        except httpx.ConnectError as exc:
+            raise AgentApiError(
+                "Cannot reach backend.\n\n"
+                "Please check:\n"
+                "- Your internet connection\n"
+                "- backend_url in agent.yaml\n"
+                "- Whether the Render backend is awake\n\n"
+                f"Backend: {self.config.backend_url}"
+            ) from exc
+        except httpx.TimeoutException as exc:
+            raise AgentApiError(
+                "Backend request timed out.\n\n"
+                "Render may be waking from sleep. The agent will retry automatically."
+            ) from exc
+        except httpx.HTTPError as exc:
+            raise AgentApiError(
+                "Cannot communicate with backend.\n\n"
+                "Please check backend_url and your network connection."
+            ) from exc
 
     def _raise_for_status(self, response: httpx.Response) -> None:
         if response.status_code in {401, 403}:
@@ -82,4 +105,16 @@ class AgentApiClient:
                 "The backend does not support this Automation Agent version.\n\n"
                 "Please update the Render deployment."
             )
-        response.raise_for_status()
+        if response.status_code >= 500:
+            raise AgentApiError(
+                "Backend server error.\n\n"
+                "The backend is reachable, but it returned an internal error. Try again after checking Render logs."
+            )
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            raise AgentApiError(
+                f"Backend request failed with HTTP {response.status_code}.\n\n"
+                "Run doctor mode for details:\n"
+                "uv run python main.py doctor"
+            ) from exc
