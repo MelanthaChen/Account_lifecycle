@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from getpass import getpass
 from os import environ
 from pathlib import Path
 
@@ -27,11 +26,10 @@ def load_config() -> AgentConfig:
     import yaml
 
     if not CONFIG_PATH.exists():
-        create_config_interactively()
+        raise SystemExit(_missing_config_message())
     data = yaml.safe_load(CONFIG_PATH.read_text()) or {}
-    if _requires_interactive_setup(data):
-        create_config_interactively(existing=data)
-        data = yaml.safe_load(CONFIG_PATH.read_text()) or {}
+    if _has_invalid_config(data):
+        raise SystemExit(_invalid_config_message())
     return AgentConfig(
         agent_name=str(data.get("agent_name") or data.get("worker_id") or "automation-agent"),
         agent_secret=str(data.get("agent_secret") or data.get("worker_secret") or ""),
@@ -45,41 +43,7 @@ def load_config() -> AgentConfig:
     )
 
 
-def create_config_interactively(existing: dict | None = None) -> None:
-    """Prompt for first-run agent settings and write agent.yaml."""
-    existing = existing or {}
-    print("\nAutomation Agent first-run setup\nI will create the configuration file for this computer.\n")
-    backend_url = _prompt(
-        "Backend URL",
-        str(existing.get("backend_url") or DEFAULT_BACKEND_URL),
-    )
-    agent_name = _prompt(
-        "Agent Name",
-        str(existing.get("agent_name") or existing.get("worker_id") or "automation-agent"),
-    )
-    agent_secret = getpass("Agent Secret: ").strip()
-    if not agent_secret:
-        raise SystemExit("Agent Secret is required. Ask the platform administrator for the secret.")
-
-    content = "\n".join(
-        [
-            f"agent_name: {agent_name}",
-            f"agent_secret: {agent_secret}",
-            f"backend_url: {backend_url}",
-            "poll_interval: 5",
-            "heartbeat_interval: 30",
-            "manual_login_timeout_seconds: 900",
-            "profile_root: ../storage",
-            "headless: false",
-            "provider: reddit",
-            "",
-        ]
-    )
-    CONFIG_PATH.write_text(content)
-    print(f"Created {CONFIG_PATH}")
-
-
-def _requires_interactive_setup(data: dict) -> bool:
+def _has_invalid_config(data: dict) -> bool:
     secret = str(data.get("agent_secret") or data.get("worker_secret") or "").strip()
     backend_url = str(data.get("backend_url") or "").strip()
     template_values = {
@@ -96,18 +60,20 @@ def _requires_interactive_setup(data: dict) -> bool:
     )
 
 
-def _prompt(label: str, default: str) -> str:
-    try:
-        value = input(f"{label} [{default}]: ").strip()
-    except EOFError as exc:
-        raise SystemExit(
-            "\nMissing configuration.\n\n"
-            "Please double-click Run.command from the Automation-Agent package so setup can ask for:\n"
-            "- Backend URL\n"
-            "- Agent Name\n"
-            "- Agent Secret\n"
-        ) from exc
-    return value or default
+def _missing_config_message() -> str:
+    return (
+        "\nMissing configuration.\n\n"
+        "This dedicated Automation Agent package should include agent.yaml.\n"
+        "Please re-download the complete package or contact the project owner.\n"
+    )
+
+
+def _invalid_config_message() -> str:
+    return (
+        "\nInvalid Automation Agent configuration.\n\n"
+        "This dedicated package is expected to ship with backend_url, agent_name, and agent_secret already filled in.\n"
+        "Please re-download the complete package or contact the project owner.\n"
+    )
 
 
 def _resolve_config_path(value: str) -> Path:

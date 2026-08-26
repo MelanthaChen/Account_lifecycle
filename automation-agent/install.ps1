@@ -29,15 +29,13 @@ uv run playwright install chromium
 
 if (-not (Test-Path "agent.yaml")) {
     Copy-Item "agent.yaml.example" "agent.yaml"
-    Write-Host "Created agent.yaml from agent.yaml.example"
+    Write-Host "Created agent.yaml from the included professor configuration."
 }
 
 Write-Host ""
-Write-Host "Next steps:"
-Write-Host "1. Open automation-agent\agent.yaml."
-Write-Host "2. Set backend_url to your Render backend ending in /api/v1."
-Write-Host "3. Set agent_name and agent_secret from your platform administrator."
-Write-Host "4. Run diagnostics: uv run python main.py doctor"
-Write-Host "5. Start the Automation Agent: .\run.ps1"
+Write-Host "Installation finished."
+Write-Host ""
+Write-Host "Next step:"
+Write-Host "Start the Automation Agent: .\run.ps1"
 Write-Host ""
 Write-Host "Keep this PowerShell window open while automation jobs are running."

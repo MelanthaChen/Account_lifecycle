@@ -1,5 +1,5 @@
 agent_name: automation-agent
-agent_secret: replace-with-agent-secret
+agent_secret: f287cbd6ac4dac5bac9644503776e1eeb26a66a785669ae379f7dff9c8283330
 backend_url: https://account-lifecycle-backend.onrender.com/api/v1
 poll_interval: 5
 heartbeat_interval: 30

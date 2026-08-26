@@ -2,12 +2,12 @@
 
 ## Overview
 
-The Automation Agent is the local browser helper for the Account Lifecycle Platform.
+The Automation Agent is a dedicated local browser appliance for the Account Lifecycle Platform.
 
-You use the web application in your browser. The Automation Agent runs quietly on your computer and performs browser tasks when the web application sends a job.
+The web application is already configured. The backend connection and agent credentials are already included in this package. You do not need to edit any configuration files.
 
 ```text
-Web Application
+Account Lifecycle Web App
       |
       v
 Backend Server
@@ -28,8 +28,7 @@ Before installing, you need:
 - macOS.
 - Internet access.
 - Python 3.12 or newer.
-- The Agent Secret from the platform administrator.
-- Access to the deployed Account Lifecycle web application.
+- Access to the Account Lifecycle web application.
 
 The installer will install:
 
@@ -50,26 +49,11 @@ If macOS blocks the file:
 2. Click `Open`.
 3. Click `Open` again if macOS asks for confirmation.
 
-## First Run
+## Running the Agent
 
 1. Double-click `Run.command`.
-2. If this is the first run, the Agent will ask for:
-   - Backend URL
-   - Agent Name
-   - Agent Secret
-3. Enter the values provided by the project owner.
-
-Use this Backend URL unless the project owner gives you a different one:
-
-```text
-https://account-lifecycle-backend.onrender.com/api/v1
-```
-
-Use this Agent Name unless the project owner gives you a different one:
-
-```text
-automation-agent
-```
+2. Wait for the agent to connect.
+3. Open the Account Lifecycle web application.
 
 When the agent is connected, you should see:
 
@@ -79,6 +63,13 @@ Status: Online
 Heartbeat: OK
 Browser: Ready
 Queue: Waiting for jobs
+```
+
+The agent is preconfigured for the professor's deployment:
+
+```text
+Backend: https://account-lifecycle-backend.onrender.com/api/v1
+Agent: automation-agent
 ```
 
 ## Creating a Reddit Session
@@ -133,16 +124,9 @@ Doctor checks:
 
 ### Authentication failed
 
-The Agent Secret is wrong or missing.
+The included agent credentials do not match the backend.
 
-Check:
-
-- `agent.yaml`
-- `agent_name`
-- `agent_secret`
-- `backend_url`
-
-Ask the project owner for the correct Agent Secret.
+Ask the project owner to confirm the Render backend environment variable for the Automation Agent.
 
 ### Cannot reach backend
 
@@ -151,7 +135,6 @@ The agent cannot connect to the backend server.
 Check:
 
 - Internet connection.
-- Backend URL.
 - Whether the backend server is awake.
 
 Try again after one minute.
@@ -184,7 +167,7 @@ No. If you received the ZIP file, you do not need Git.
 
 ### Do I need to edit YAML?
 
-Usually no. `Run.command` will ask for the required values if the configuration is missing.
+No. This package is preconfigured for the professor's deployment.
 
 ### Can I close the agent?
 

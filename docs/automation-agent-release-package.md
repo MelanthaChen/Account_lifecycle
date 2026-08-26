@@ -1,8 +1,8 @@
 # Automation Agent Release Package
 
-This guide explains how to prepare a ZIP file for a researcher or professor.
+This guide explains how to prepare the dedicated Automation Agent ZIP file for the professor.
 
-The recipient should not need Git. They should receive one folder named `Automation-Agent`.
+The recipient should not need Git and should not edit YAML. They should receive one folder named `Automation-Agent` with the backend URL and agent credentials already included.
 
 ## Release Workflow
 
@@ -35,7 +35,7 @@ The recipient should not need Git. They should receive one folder named `Automat
    zip -r Automation-Agent.zip Automation-Agent
    ```
 
-5. Send `dist/Automation-Agent.zip` to the researcher.
+5. Send `dist/Automation-Agent.zip` to the professor.
 
 ## What The ZIP Contains
 
@@ -58,8 +58,9 @@ Confirm:
 - `Install.command` is executable.
 - `Run.command` is executable.
 - `README.pdf` opens.
-- `agent.yaml` does not contain your private secret unless the package is for one trusted recipient.
-- `automation-agent/agent.yaml` is not included with a stale local secret.
+- `agent.yaml` contains the professor's dedicated backend URL, agent name, and agent secret.
+- `agent.yaml.example` contains the same dedicated configuration as the fallback copy.
+- `automation-agent/agent.yaml` is not included inside the nested source folder.
 - `automation-agent/.venv`, `.ruff_cache`, and `__pycache__` are not included.
 
 ## Recipient Instructions
@@ -69,5 +70,5 @@ Tell the recipient:
 1. Unzip the file.
 2. Double-click `Install.command`.
 3. Double-click `Run.command`.
-4. Enter the Backend URL, Agent Name, and Agent Secret if prompted.
+4. Open the web application.
 5. Keep the terminal window open while using the web platform.

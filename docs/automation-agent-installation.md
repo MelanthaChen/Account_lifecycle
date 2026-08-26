@@ -8,7 +8,9 @@ The web application is shared and already deployed:
 - Backend: Render
 - Database: Neon PostgreSQL
 
-Each researcher who owns Reddit accounts should run one Automation Agent on their own computer. The agent keeps that researcher's browser profiles, Reddit login sessions, and automation runtime local to their machine.
+The professor runs one Automation Agent on the automation computer. The agent keeps browser profiles, Reddit login sessions, and automation runtime local to that machine.
+
+The professor package is preconfigured. It already includes the backend URL, agent name, and agent secret.
 
 ## What The Agent Does
 
@@ -28,12 +30,11 @@ Keep the agent terminal open while automation is needed. If the agent is stopped
 Install these before starting:
 
 - Python 3.12 or newer
-- Git
 - uv Python package manager
 - Playwright Chromium browser
 - Chrome or Chromium for normal browser testing
 
-The installer scripts can install `uv`, Python dependencies, and Playwright Chromium. Python and Git should be installed first.
+The installer scripts can install `uv`, Python dependencies, and Playwright Chromium. Python should be installed first.
 
 ## macOS Requirements
 
@@ -41,18 +42,6 @@ Install Python from:
 
 ```text
 https://www.python.org/downloads/
-```
-
-Install Git either from Xcode Command Line Tools or from:
-
-```text
-https://git-scm.com/downloads
-```
-
-To install Xcode Command Line Tools:
-
-```bash
-xcode-select --install
 ```
 
 ## Windows Requirements
@@ -69,72 +58,16 @@ During installation, enable:
 Add python.exe to PATH
 ```
 
-Install Git from:
-
-```text
-https://git-scm.com/download/win
-```
-
 Use PowerShell for the commands in this guide.
 
 ## Quick Start
 
-Clone the repository:
-
-```bash
-git clone https://github.com/MelanthaChen/Account_lifecycle.git
-cd Account_lifecycle/automation-agent
-```
-
-Install dependencies:
-
-```bash
-uv sync --extra dev
-```
-
-Install Playwright Chromium:
-
-```bash
-uv run playwright install chromium
-```
-
-Create the configuration file:
-
-```bash
-cp agent.yaml.example agent.yaml
-```
-
-On Windows PowerShell:
-
-```powershell
-Copy-Item agent.yaml.example agent.yaml
-```
-
-Edit `agent.yaml`:
-
-```yaml
-agent_name: automation-agent
-agent_secret: replace-with-secret-from-platform-admin
-backend_url: https://account-lifecycle-backend.onrender.com/api/v1
-poll_interval: 5
-heartbeat_interval: 30
-manual_login_timeout_seconds: 900
-profile_root: ../storage
-headless: false
-provider: reddit
-```
-
-Run diagnostics:
-
-```bash
-uv run python main.py doctor
-```
-
-Start the agent:
-
-```bash
-uv run python main.py
-```
+1. Unzip `Automation-Agent.zip`.
+2. Open the `Automation-Agent` folder.
+3. Double-click `Install.command`.
+4. Wait for installation to finish.
+5. Double-click `Run.command`.
+6. Open the Account Lifecycle web application.
 
 The terminal should show:
 
@@ -153,30 +86,27 @@ Queue: Waiting for jobs
 
 ## Automatic Installer: macOS/Linux
 
-From the repository root:
+From the package folder:
 
 ```bash
-cd automation-agent
-chmod +x install.sh run.sh
-./install.sh
+./Install.command
 ```
 
-Then edit `agent.yaml` and run:
+Then run:
 
 ```bash
-./run.sh
+./Run.command
 ```
 
 ## Automatic Installer: Windows
 
-Open PowerShell from the repository root:
+Open PowerShell from the package folder:
 
 ```powershell
-cd automation-agent
 .\install.ps1
 ```
 
-Then edit `agent.yaml` and run:
+Then run:
 
 ```powershell
 .\run.ps1
@@ -190,25 +120,11 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 
 Then run `.\install.ps1` again.
 
-## First-Run Configuration Wizard
+## Configuration
 
-If `agent.yaml` does not exist, the agent will prompt for:
+The professor package includes `agent.yaml` with the correct backend URL, agent name, and agent secret.
 
-- Backend URL
-- Agent Name
-- Agent Secret
-
-Then it creates `agent.yaml` automatically.
-
-Example:
-
-```text
-Backend URL [https://account-lifecycle-backend.onrender.com/api/v1]:
-Agent Name [automation-agent]:
-Agent Secret:
-```
-
-Ask the platform administrator for the backend URL and agent secret.
+Do not edit `agent.yaml` unless the project owner sends an updated configuration.
 
 ## Doctor Command
 
@@ -248,7 +164,7 @@ Automation Agent is ready.
 
 ## Configuration Reference
 
-`agent.yaml` fields:
+The included `agent.yaml` fields:
 
 - `agent_name`: display name for this local runtime
 - `agent_secret`: secret used to authenticate with the backend
@@ -282,13 +198,9 @@ Do not delete `storage/` unless you intentionally want to remove local Reddit br
 
 ### Authentication failed
 
-Check:
+The included agent credentials do not match the deployed backend.
 
-- `agent_name`
-- `agent_secret`
-- `backend_url`
-
-Make sure there are no extra spaces in `agent.yaml`.
+Ask the project owner to confirm the Render backend environment variable and send an updated package.
 
 ### Backend does not support this Automation Agent version
 
@@ -319,7 +231,9 @@ Check that:
 
 ## Updating The Agent
 
-Stop the agent with `Ctrl+C`, then:
+For the professor package, use the updated ZIP sent by the project owner.
+
+For repository development, stop the agent with `Ctrl+C`, then:
 
 ```bash
 git pull

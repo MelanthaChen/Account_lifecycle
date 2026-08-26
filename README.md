@@ -290,24 +290,33 @@ Set the frontend environment variable:
 VITE_API_BASE_URL=https://your-render-backend.onrender.com/api/v1
 ```
 
-### Run Agent Locally
+### Run The Automation Agent Package
+
+The professor-facing Automation Agent is distributed as a preconfigured ZIP package. It already contains the backend URL, agent name, and agent secret.
+
+```text
+Automation-Agent/
+  Install.command
+  Run.command
+  README.md
+  README.pdf
+  agent.yaml
+  automation-agent/
+  logs/
+```
+
+Professor workflow:
+
+1. Unzip `Automation-Agent.zip`.
+2. Double-click `Install.command`.
+3. Wait for installation to finish.
+4. Double-click `Run.command`.
+5. Open the web application.
+
+Repository development workflow:
 
 ```bash
 cd automation-agent
-cp agent.yaml.example agent.yaml
-```
-
-Edit:
-
-```yaml
-backend_url: https://your-render-backend.onrender.com/api/v1
-agent_name: automation-agent
-agent_secret: replace-with-strong-secret
-```
-
-Then run:
-
-```bash
 uv sync --extra dev
 uv run playwright install chromium
 uv run python main.py
