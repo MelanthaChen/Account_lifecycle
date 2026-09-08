@@ -53,6 +53,7 @@ class RedditSessionProvider:
 
     async def create_session(self, account: AccountLike) -> BrowserSessionResult:
         """Launch Reddit login and keep the browser context alive for manual login."""
+        logger.info("RedditSessionProvider.create_session entered: account=%s", account.nickname)
         return await self._create_session(account)
 
     async def validate(self, account: AccountLike) -> BrowserSessionResult:

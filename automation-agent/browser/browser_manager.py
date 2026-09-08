@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from browser_sessions.base import BrowserSessionResult
 from providers.manager import provider_manager
 from runtime_types import AccountLike
+
+logger = logging.getLogger("automation-agent")
 
 
 class BrowserManager:
@@ -26,6 +29,12 @@ class BrowserManager:
     async def create_session(self, account: AccountLike) -> BrowserSessionResult:
         """Start a manual login session and keep the provider context alive."""
         provider = provider_manager.get_provider(account.platform)
+        logger.info(
+            "BrowserManager.create_session entered: account=%s platform=%s provider=%s",
+            account.nickname,
+            account.platform,
+            provider.__class__.__name__,
+        )
         active_session = self._active_sessions.pop(str(account.id), None)
         if active_session is not None:
             await provider.close_session(active_session)
@@ -65,6 +74,12 @@ class BrowserManager:
     async def validate_session(self, account: AccountLike) -> BrowserSessionResult:
         """Validate the stored session through the account provider."""
         provider = provider_manager.get_provider(account.platform)
+        logger.info(
+            "BrowserManager.validate_session entered: account=%s platform=%s provider=%s",
+            account.nickname,
+            account.platform,
+            provider.__class__.__name__,
+        )
         return await provider.validate_session(account)
 
     async def refresh_session(self, account: AccountLike) -> BrowserSessionResult:

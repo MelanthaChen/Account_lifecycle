@@ -59,9 +59,18 @@ class AutomationAgent:
             return False
 
         job_id = job["id"]
+        raw_job_type = job.get("job_type")
         self.heartbeat.running_job = job_id
         logger.info("Claiming job %s", job_id)
+        logger.info(
+            "Claimed job payload: job_id=%s job_type=%s campaign_id=%s account_id=%s",
+            job_id,
+            raw_job_type,
+            job.get("campaign_id"),
+            job.get("account_id"),
+        )
         await self.api.start_job(job_id)
+        logger.info("Started job %s; dispatching to executor.", job_id)
         try:
             result = await self.executor.execute_job(job)
         except Exception as exc:
@@ -71,6 +80,12 @@ class AutomationAgent:
         finally:
             self.heartbeat.running_job = None
 
+        logger.info(
+            "Executor finished job %s success=%s reason=%s",
+            job_id,
+            result.get("success"),
+            result.get("reason") or result.get("error"),
+        )
         if result["success"]:
             await self.api.finish_job(job_id, result)
         else:

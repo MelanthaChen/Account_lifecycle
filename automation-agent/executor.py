@@ -26,24 +26,35 @@ class WorkflowExecutor:
         self.config = config
 
     async def execute_job(self, job: dict[str, Any]) -> dict[str, Any]:
-        job_type = self._normalize_job_type(job.get("job_type") or "WORKFLOW")
+        raw_job_type = job.get("job_type") or "WORKFLOW"
+        job_type = self._normalize_job_type(raw_job_type)
+        logger.info(
+            "Executor dispatch: job_id=%s job.type=%s runtime_type=%s",
+            job.get("id"),
+            raw_job_type,
+            job_type,
+        )
         if job_type != "WORKFLOW":
+            logger.info("Selected executor: runtime job handler for %s", job_type)
             return await self._execute_runtime_job(job, job_type)
 
+        logger.info("Selected executor: workflow handler")
         campaign = job["campaign"]
         if campaign is None:
+            logger.info("Workflow job %s has no campaign payload.", job.get("id"))
             return {
                 "success": False,
                 "account_id": job["account_id"],
                 "reason": "campaign_required",
             }
-        account = self._account_object(job["account"])
-        provider = provider_manager.get_provider(account.platform)
-        behavior_session: Any | None = None
-        step_results: list[dict[str, Any]] = []
         target_url = campaign["target_url"]
         workflow_steps = list(job.get("workflow_steps") or [])
+        logger.info("Workflow job %s step_count=%s", job.get("id"), len(workflow_steps))
         if not workflow_steps:
+            logger.info(
+                "Workflow job %s has no workflow steps; failing instead of completing silently.",
+                job.get("id"),
+            )
             return {
                 "success": False,
                 "campaign_id": job["campaign_id"],
@@ -52,6 +63,11 @@ class WorkflowExecutor:
                 "reason": "workflow_steps_required",
                 "steps": [],
             }
+
+        account = self._account_object(job["account"])
+        provider = provider_manager.get_provider(account.platform)
+        behavior_session: Any | None = None
+        step_results: list[dict[str, Any]] = []
 
         try:
             for step in workflow_steps:
@@ -89,28 +105,44 @@ class WorkflowExecutor:
 
     async def _execute_runtime_job(self, job: dict[str, Any], job_type: str) -> dict[str, Any]:
         account = self._account_object(job["account"])
+        logger.info(
+            "Runtime dispatch: job_id=%s runtime_type=%s account=%s platform=%s",
+            job.get("id"),
+            job_type,
+            account.nickname,
+            account.platform,
+        )
         if job_type == "UPVOTE":
+            logger.info("Selected executor: standalone upvote")
             return await self._standalone_upvote(job, account)
         if job_type == "COMMENT":
+            logger.info("Selected executor: standalone comment")
             return await self._standalone_comment(job, account)
         if job_type == "SESSION_LOGIN":
+            logger.info("Selected executor: session login")
             return await self._session_login(job, account)
         if job_type == "SESSION_VALIDATE":
+            logger.info("Selected executor: session validate")
             result = await browser_manager.validate_session(account)
             return self._session_job_result(job, result, success=result.session_status == VALID_SESSION_STATUS)
         if job_type == "SESSION_REFRESH":
+            logger.info("Selected executor: session refresh")
             result = await browser_manager.refresh_session(account)
             return self._session_job_result(job, result, success=result.session_status == VALID_SESSION_STATUS)
         if job_type == "SESSION_DELETE":
+            logger.info("Selected executor: session delete")
             result = await browser_manager.delete_session(account)
             return self._session_job_result(job, result, success=True)
         if job_type == "OPEN_BROWSER":
+            logger.info("Selected executor: open browser")
             result = await browser_manager.open_browser(account)
             return self._session_job_result(job, result, success=True)
         if job_type == "OPEN_HOME":
+            logger.info("Selected executor: open home")
             result = await browser_manager.open_home(account)
             return self._session_job_result(job, result, success=True)
         if job_type == "PROFILE_SYNC":
+            logger.info("Selected executor: profile sync")
             provider = provider_manager.get_provider(account.platform)
             profile = await provider.sync_profile(account)
             return {
@@ -130,18 +162,7 @@ class WorkflowExecutor:
                     "is_gold": profile.is_gold,
                 },
             }
-        return {
-            "success": False,
-            "account_id": job["account_id"],
-            "job_type": job_type,
-            "reason": "unsupported_job_type",
-            "logs": [
-                {
-                    "message": f"Unsupported automation job type: {job_type}.",
-                    "level": "error",
-                }
-            ],
-        }
+        raise RuntimeError(f"Unsupported automation job type: {job_type}")
 
     async def _standalone_upvote(self, job: dict[str, Any], account: Any) -> dict[str, Any]:
         payload = job.get("result_json") if isinstance(job.get("result_json"), dict) else {}
@@ -281,6 +302,7 @@ class WorkflowExecutor:
         }
 
     async def _session_login(self, job: dict[str, Any], account: Any) -> dict[str, Any]:
+        logger.info("Starting session job: job_id=%s account=%s", job.get("id"), account.nickname)
         result = await browser_manager.create_session(account)
         active_session = result.active_session
         if active_session is None:
