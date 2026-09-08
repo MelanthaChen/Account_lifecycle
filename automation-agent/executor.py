@@ -26,7 +26,7 @@ class WorkflowExecutor:
         self.config = config
 
     async def execute_job(self, job: dict[str, Any]) -> dict[str, Any]:
-        job_type = str(job.get("job_type") or "WORKFLOW")
+        job_type = self._normalize_job_type(job.get("job_type") or "WORKFLOW")
         if job_type != "WORKFLOW":
             return await self._execute_runtime_job(job, job_type)
 
@@ -42,10 +42,20 @@ class WorkflowExecutor:
         behavior_session: Any | None = None
         step_results: list[dict[str, Any]] = []
         target_url = campaign["target_url"]
+        workflow_steps = list(job.get("workflow_steps") or [])
+        if not workflow_steps:
+            return {
+                "success": False,
+                "campaign_id": job["campaign_id"],
+                "account_id": job["account_id"],
+                "target_url": target_url,
+                "reason": "workflow_steps_required",
+                "steps": [],
+            }
 
         try:
-            for step in job["workflow_steps"]:
-                action_type = WorkflowActionType(step["action_type"])
+            for step in workflow_steps:
+                action_type = WorkflowActionType(self._normalize_job_type(step["action_type"]))
                 config = dict(step.get("config") or {})
                 if self._uses_behavior_session(action_type) and behavior_session is None:
                     behavior_session = await provider.start_behavior_session(account)
@@ -125,6 +135,12 @@ class WorkflowExecutor:
             "account_id": job["account_id"],
             "job_type": job_type,
             "reason": "unsupported_job_type",
+            "logs": [
+                {
+                    "message": f"Unsupported automation job type: {job_type}.",
+                    "level": "error",
+                }
+            ],
         }
 
     async def _standalone_upvote(self, job: dict[str, Any], account: Any) -> dict[str, Any]:
@@ -454,3 +470,10 @@ class WorkflowExecutor:
             "detail": detail,
             "verified": verified,
         }
+
+    @staticmethod
+    def _normalize_job_type(value: Any) -> str:
+        raw = str(value or "").strip()
+        if "." in raw:
+            raw = raw.rsplit(".", 1)[-1]
+        return raw.upper()
