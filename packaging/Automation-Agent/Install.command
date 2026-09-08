@@ -12,7 +12,9 @@ echo
 if [ ! -d "$AGENT_DIR" ]; then
   echo "The automation-agent folder is missing."
   echo "Please use the complete Automation-Agent package."
-  read -r -p "Press Enter to close..."
+  if [ -t 0 ]; then
+    read -r -p "Press Enter to close..."
+  fi
   exit 1
 fi
 
@@ -22,7 +24,9 @@ echo "Checking Python..."
 if ! command -v python3 >/dev/null 2>&1; then
   echo "Python 3.12 or newer is required."
   echo "Install Python from https://www.python.org/downloads/"
-  read -r -p "Press Enter to close..."
+  if [ -t 0 ]; then
+    read -r -p "Press Enter to close..."
+  fi
   exit 1
 fi
 
@@ -42,7 +46,9 @@ fi
 if ! command -v uv >/dev/null 2>&1; then
   echo "uv installation did not finish correctly."
   echo "Close this window, open Install.command again, or install uv from https://docs.astral.sh/uv/"
-  read -r -p "Press Enter to close..."
+  if [ -t 0 ]; then
+    read -r -p "Press Enter to close..."
+  fi
   exit 1
 fi
 
@@ -64,4 +70,6 @@ echo
 echo "Next step:"
 echo "Double-click Run.command."
 echo
-read -r -p "Press Enter to close..."
+if [ -t 0 ]; then
+  read -r -p "Press Enter to close..."
+fi

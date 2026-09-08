@@ -107,8 +107,6 @@ class RedditActions:
             await self.session_provider.close_session(active_session)
 
     def _get_state_path(self, account: AccountLike) -> Path:
-        if account.session_path:
-            return Path(account.session_path)
         return self.session_provider.get_storage_directory(account) / "storage_state.json"
 
     @staticmethod

@@ -151,7 +151,7 @@ class RedditSessionProvider:
         )
 
     async def _validate(self, account: AccountLike) -> BrowserSessionResult:
-        state_path = Path(account.session_path) if account.session_path else self.get_state_path(account)
+        state_path = self.get_state_path(account)
         profile_directory = self.get_profile_directory(account)
 
         if not profile_directory.exists():

@@ -9,6 +9,15 @@ LOG_FILE="$LOG_DIR/automation-agent.log"
 
 mkdir -p "$LOG_DIR"
 
+handle_interrupt() {
+  echo
+  echo "Automation Agent stopped. You can close this window."
+  echo
+  exit 0
+}
+
+trap handle_interrupt INT
+
 echo "===================================="
 echo "Automation Agent"
 echo "===================================="
@@ -17,14 +26,18 @@ echo
 if [ ! -d "$AGENT_DIR" ]; then
   echo "The automation-agent folder is missing."
   echo "Please use the complete Automation-Agent package."
-  read -r -p "Press Enter to close..."
+  if [ -t 0 ]; then
+    read -r -p "Press Enter to close..."
+  fi
   exit 1
 fi
 
 if ! command -v uv >/dev/null 2>&1; then
   echo "uv is not installed."
   echo "Please double-click Install.command first."
-  read -r -p "Press Enter to close..."
+  if [ -t 0 ]; then
+    read -r -p "Press Enter to close..."
+  fi
   exit 1
 fi
 
@@ -34,11 +47,17 @@ fi
 
 cd "$AGENT_DIR"
 export AGENT_CONFIG_PATH="$CONFIG_PATH"
+export PYTHONUNBUFFERED=1
 
 uv run python main.py 2>&1 | tee -a "$LOG_FILE"
 STATUS=${PIPESTATUS[0]}
+trap - INT
 
-if [ "$STATUS" -ne 0 ]; then
+if [ "$STATUS" -eq 0 ] || [ "$STATUS" -eq 120 ] || [ "$STATUS" -eq 130 ]; then
+  echo
+  echo "Automation Agent stopped. You can close this window."
+  echo
+elif [ "$STATUS" -ne 0 ]; then
   echo
   echo "The Automation Agent stopped with an error."
   echo
@@ -51,5 +70,7 @@ if [ "$STATUS" -ne 0 ]; then
   echo
 fi
 
-read -r -p "Press Enter to close..."
+if [ -t 0 ]; then
+  read -r -p "Press Enter to close..."
+fi
 exit "$STATUS"
